@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Batazo.Api/Batazo.Api.csproj" />
+    <Project Path="src/Batazo.Domain/Batazo.Domain.csproj" />
+    <Project Path="src/Batazo.Infrastructure/Batazo.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Batazo.Domain.Tests/Batazo.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
