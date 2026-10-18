@@ -1,4 +1,4 @@
-﻿namespace Batazo.Domain.Tests;
+namespace Batazo.Domain.Tests;
 
 public class UnitTest1
 {

@@ -1,0 +1,56 @@
+# Raíz: los editores no buscan otros .editorconfig en carpetas superiores.
+root = true
+
+# Reglas para todos los archivos.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Archivos de configuración y frontend: 2 espacios, la convención de esos ecosistemas.
+[*.{json,yml,yaml,xml,csproj,props,slnx}]
+indent_size = 2
+
+[*.{ts,tsx,js,jsx,css,html}]
+indent_size = 2
+
+# En Markdown, dos espacios al final de línea son un salto de línea; no se borran.
+[*.md]
+trim_trailing_whitespace = false
+
+# Estilo de C#.
+[*.cs]
+# Usings: los de System primero y fuera del namespace.
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:suggestion
+
+# Namespace de archivo (namespace Batazo.Domain;) en lugar de llaves.
+csharp_style_namespace_declarations = file_scoped:suggestion
+
+# Llaves siempre, incluso en if de una línea, y en su propia línea.
+csharp_prefer_braces = true:suggestion
+csharp_new_line_before_open_brace = all
+
+# var cuando el tipo es evidente o no aporta información.
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+# Nombres: interfaces con I, campos privados con _camelCase.
+dotnet_naming_rule.interfaces_start_with_i.symbols = interfaces
+dotnet_naming_rule.interfaces_start_with_i.style = prefix_i
+dotnet_naming_rule.interfaces_start_with_i.severity = suggestion
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_style.prefix_i.required_prefix = I
+dotnet_naming_style.prefix_i.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel_case
+dotnet_naming_rule.private_fields_underscore.severity = suggestion
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
