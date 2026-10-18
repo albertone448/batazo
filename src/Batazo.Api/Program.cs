@@ -6,6 +6,7 @@ var connectionString = builder.Configuration.GetConnectionString("Batazo")
     ?? throw new InvalidOperationException("Connection string 'Batazo' is not configured.");
 
 builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddSingleton(TimeProvider.System);
 
 // Add services to the container.
 
