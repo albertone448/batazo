@@ -1,4 +1,11 @@
+using Batazo.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
+
+var connectionString = builder.Configuration.GetConnectionString("Batazo")
+    ?? throw new InvalidOperationException("Connection string 'Batazo' is not configured.");
+
+builder.Services.AddInfrastructure(connectionString);
 
 // Add services to the container.
 
