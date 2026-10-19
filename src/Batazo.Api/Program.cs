@@ -24,10 +24,16 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseStaticFiles();
+
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.MapHealthChecks("/health");
+
+app.Map("/api/{**path}", () => Results.Problem(statusCode: StatusCodes.Status404NotFound));
+
+app.MapFallbackToFile("index.html");
 
 app.Run();

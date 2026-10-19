@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <UserSecretsId>05b5a40f-f41e-4152-98ca-c975088e44b9</UserSecretsId>
+    <FrontendRoot>$(MSBuildProjectDirectory)/../../web/</FrontendRoot>
+    <BuildFrontend Condition="'$(BuildFrontend)' == ''">true</BuildFrontend>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,5 +18,20 @@
     <ProjectReference Include="..\Batazo.Domain\Batazo.Domain.csproj" />
     <ProjectReference Include="..\Batazo.Infrastructure\Batazo.Infrastructure.csproj" />
   </ItemGroup>
+
+  <!-- Builds the React app on publish and places it under wwwroot in the publish output.
+       Disable with -p:BuildFrontend=false (e.g. when the Dockerfile builds it in a Node stage). -->
+  <Target Name="PublishFrontend" AfterTargets="ComputeFilesToPublish" Condition="'$(BuildFrontend)' == 'true'">
+    <Exec WorkingDirectory="$(FrontendRoot)" Command="npm ci" />
+    <Exec WorkingDirectory="$(FrontendRoot)" Command="npm run build" />
+
+    <ItemGroup>
+      <FrontendDistFiles Include="$(FrontendRoot)dist/**" />
+      <ResolvedFileToPublish Include="@(FrontendDistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 
 </Project>
