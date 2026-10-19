@@ -87,7 +87,7 @@ Comprueba la instalación y haz una prueba rápida de PostgreSQL con un contened
 
 ```bash
 docker run hello-world && docker compose version
-docker run --name pg-prueba -e POSTGRES_PASSWORD=prueba -p 5432:5432 -d postgres:17
+docker run --name pg-prueba -e POSTGRES_PASSWORD=prueba -p 5432:5432 -d postgres:18
 sleep 5 && docker exec -it pg-prueba psql -U postgres -c "SELECT version();"
 docker rm -f pg-prueba
 ```
@@ -95,10 +95,23 @@ docker rm -f pg-prueba
 Opcional: si no quieres que Docker arranque con el sistema, desactívalo y lo inicias con `sudo systemctl start docker` cuando lo necesites:
 
 ```bash
-sudo systemctl disable docker.service containerd.service
+sudo systemctl disable docker.service docker.socket containerd.service
 ```
 
-## 4. Extensiones de VS Code
+Incluye `docker.socket`: si solo desactivas el servicio, ese *socket* vuelve a arrancar Docker automáticamente con el primer comando `docker`.
+
+## 4. GitHub CLI
+
+`gh` permite clonar el repositorio, abrir pull requests y revisar la CI desde la terminal. Instálalo siguiendo las instrucciones para Debian y Ubuntu de la [documentación oficial](https://github.com/cli/cli/blob/trunk/docs/install_linux.md), que agregan el repositorio de GitHub a `apt`. El paquete `gh` del repositorio de Ubuntu suele estar desactualizado.
+
+Después inicia sesión y comprueba que funciona:
+
+```bash
+gh auth login
+gh --version
+```
+
+## 5. Extensiones de VS Code
 
 | Extensión | Identificador | Para qué |
 | --- | --- | --- |
@@ -117,20 +130,21 @@ Con VS Code cerrado:
 for ext in ms-dotnettools.csdevkit dbaeumer.vscode-eslint esbenp.prettier-vscode ms-azuretools.vscode-containers ms-ossdata.vscode-pgsql EditorConfig.EditorConfig usernamehw.errorlens eamodio.gitlens; do code --install-extension "$ext"; done
 ```
 
-## 5. Navegador y Postman
+## 6. Navegador y Postman
 
 - Instala **React Developer Tools** en Chrome o Firefox desde la tienda de extensiones.
-- En **Postman**, guarda las direcciones (`localhost` y la de producción) como variables de entorno en lugar de escribirlas en cada petición. La autenticación usa cookies, y Postman las conserva después del inicio de sesión.
+- En **Postman**, crea un entorno con una variable `baseUrl` y úsala en todas las peticiones (`{{baseUrl}}/api/...`):
+  - Local: `http://localhost:5224`
+  - Producción: `https://batazo.onrender.com`
 
-## 6. Clonar el repositorio
+  Así cambias de entorno sin editar cada petición. La colección de Postman no se guarda en el repositorio. La autenticación usará cookies, y Postman las conserva después del inicio de sesión.
+
+## 7. Clonar el repositorio
 
 ```bash
-gh auth login
-gh repo clone <usuario>/batazo
+gh repo clone albertone448/batazo
 cd batazo
 ```
-
-Reemplaza `<usuario>` por el dueño del repositorio en GitHub.
 
 ## Comprobación final
 
@@ -140,4 +154,4 @@ En una terminal nueva, este comando debe mostrar una versión por herramienta, s
 git --version && gh --version && dotnet --version && dotnet ef --version && node --version && npm --version && docker --version && docker compose version
 ```
 
-Las instrucciones para ejecutar la aplicación se agregarán a medida que el proyecto avance.
+Con todo instalado, sigue la sección **"Cómo ejecutarlo"** del [README](../README.md) para configurar la base, la cadena de conexión y arrancar la aplicación.
