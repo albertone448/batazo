@@ -1,0 +1,20 @@
+# Secretos y configuración local: nunca dentro de la imagen.
+**/.env
+**/.env.*
+**/*.user
+
+# Salidas de compilación y dependencias: se generan dentro de la imagen.
+**/bin
+**/obj
+**/node_modules
+web/dist
+
+# Git, editores y archivos que la imagen no usa.
+.git
+.github
+.vscode
+.idea
+docs
+tests
+compose.yaml
+README.md
