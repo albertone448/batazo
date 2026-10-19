@@ -12,6 +12,9 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString)
                 .UseSnakeCaseNamingConvention());
 
+        services.AddHealthChecks()
+            .AddDbContextCheck<BatazoDbContext>("database");
+
         return services;
     }
 }
