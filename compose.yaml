@@ -18,5 +18,16 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build: .
+    profiles: ["app"]
+    environment:
+      ConnectionStrings__Batazo: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres-data:
