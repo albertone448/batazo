@@ -54,3 +54,9 @@ dotnet_naming_symbols.private_fields.applicable_kinds = field
 dotnet_naming_symbols.private_fields.applicable_accessibilities = private
 dotnet_naming_style.underscore_camel_case.required_prefix = _
 dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+
+
+# Migraciones: las genera EF Core con BOM y su propio estilo. Se tratan como código
+# generado para que dotnet format y los analizadores no las revisen.
+[src/Batazo.Infrastructure/Persistence/Migrations/*.cs]
+generated_code = true
