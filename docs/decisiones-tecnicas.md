@@ -30,6 +30,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-14](#dt-14) | Base de datos de producción en Neon | 19 oct 2026 |
 | [DT-15](#dt-15) | Despliegue en Render | 19 oct 2026 |
 | [DT-16](#dt-16) | Contrato de errores de la API | 21 oct 2026 |
+| [DT-17](#dt-17) | Validación de entrada | 21 oct 2026 |
 
 <a id="dt-01"></a>
 
@@ -229,7 +230,7 @@ web/                      (React, fuera de la solución .NET)
 **Decisión.**
 
 - Controladores con **`[ApiController]`** y **DTO explícitos** para solicitudes y respuestas. Las entidades de EF Core nunca salen de la API.
-- **Validación de formato con atributos** en los DTO (`[Required]`, `[MaxLength]`). `[ApiController]` responde 400 automáticamente si no se cumplen.
+- **Validación de formato con atributos** en los DTO (`[Required]`, `[MaxLength]`). `[ApiController]` responde 400 automáticamente si no se cumplen. El detalle está en [DT-17](#dt-17).
 - **ProblemDetails** como formato de todos los errores HTTP.
 - **`TimeProvider`** registrado como singleton para obtener la hora actual, siempre en UTC.
 - **OpenAPI** solo se publica en desarrollo.
@@ -412,7 +413,7 @@ web/                      (React, fuera de la solución .NET)
 | 429 Too Many Requests | Se superó el límite de solicitudes | Limitador de solicitudes |
 | 500 Internal Server Error | Un fallo inesperado: la base no responde, un error de programación | Manejador global |
 
-- **Errores de negocio con código propio:** además del código HTTP, llevan un campo `code` estable con el formato `modulo.motivo`, en minúsculas y con guiones (`prediccion.cerrada`, `usuario.nombre-duplicado`). El catálogo crece con cada historia; el mecanismo con el que el dominio informa estos errores se decide con la primera regla de negocio.
+- **Errores de negocio con código propio:** además del código HTTP, llevan un campo `code` estable, en inglés porque es un identificador, con el formato `module.reason`, en minúsculas y con guiones (`prediction.closed`, `user.username-taken`). El catálogo crece con cada historia; el mecanismo con el que el dominio informa estos errores se decide con la primera regla de negocio.
 - **Excepción consciente:** `/health` responde texto plano (`Healthy` o `Unhealthy`), porque lo consume la plataforma de despliegue, no los clientes de la API.
 
 **Por qué.**
@@ -428,7 +429,35 @@ web/                      (React, fuera de la solución .NET)
 - Un archivo estático inexistente también responde ProblemDetails en JSON.
 - Hoy los logs de consola no incluyen el `traceId`, así que todavía no se puede buscar un error a partir de él. Se resuelve con la salida JSON de los logs (F1-03).
 - Una sola excepción de base de datos genera tres entradas de error en los logs (EF Core y el manejador global). Se revisa al configurar los niveles de log (F1-03).
-- Los mensajes de validación por defecto están en inglés (`The Message field is required.`), y la aplicación es solo en español. Se revisa con la validación de entrada (F1-02).
+- Los mensajes de validación se escriben en español en cada DTO; ver [DT-17](#dt-17).
+
+<a id="dt-17"></a>
+
+### DT-17 · Validación de entrada
+
+**Contexto.** La validación con atributos ya funcionaba, pero los mensajes salían en inglés, las claves de `errors` usaban el nombre de la propiedad de C# (`Message`) en vez del nombre del JSON (`message`), y un JSON mal formado devolvía mensajes con nombres de clases internas, posiciones del texto y el nombre del parámetro del controlador.
+
+**Decisión.**
+
+- **Formato en los DTO, reglas de negocio en el dominio.** Las anotaciones nativas de `System.ComponentModel.DataAnnotations` comprueban la forma de los datos (obligatorio, longitud, rango, formato). Lo que depende del estado del sistema, como si una predicción sigue abierta, va en el dominio. Sin FluentValidation.
+- **Cada anotación lleva su `ErrorMessage` en español**, porque el frontend muestra ese texto tal cual junto al campo. En los mensajes se usan los marcadores del atributo en vez de repetir valores (`{1}` para la longitud en `MaxLength`).
+- **Los DTO de entrada son records con propiedades `init`**, con los atributos sobre cada propiedad. Los DTO de salida, que no se validan, pueden ser records posicionales.
+- **Las claves de `errors` usan el nombre del JSON**, gracias a `SystemTextJsonValidationMetadataProvider`.
+- **Sin `[Required]` implícito** (`SuppressImplicitRequiredAttributeForNonNullableReferenceTypes`): todo campo obligatorio lleva su `[Required]` explícito.
+- **Los errores al leer el JSON no exponen detalles** (`AllowInputFormatterExceptionMessages = false`), y el cuerpo vacío tiene un mensaje en español.
+- **Idioma:** los identificadores (claves de `errors`, `code` de los errores de negocio, nombres en el código) van en inglés; los textos para el usuario, en español.
+
+**Por qué.**
+
+- La aplicación es solo en español, así que es más simple que la API mande el texto final que mantener un diccionario aparte en el frontend.
+- Con un record posicional, los atributos quedan en el parámetro del constructor y no en la propiedad, y `SystemTextJsonValidationMetadataProvider` no los renombra. Con propiedades, el nombre de la clave coincide con el JSON y el frontend puede marcar el campo correcto.
+- El `[Required]` implícito de los tipos no anulables genera mensajes en inglés y errores sobre el parámetro del controlador. Hacerlo explícito deja cada regla visible en el DTO.
+- Los mensajes de System.Text.Json revelan cómo está construida la API sin ayudar al cliente.
+
+**Consecuencias.**
+
+- Las propiedades de texto obligatorias se declaran con `= string.Empty` para cumplir la nulabilidad; `[Required]` sigue rechazando el texto vacío. No se usa el modificador `required` de C#, porque System.Text.Json lo aplica al leer el JSON y el error llegaría como un error de formato, sin el mensaje en español.
+- Un JSON mal formado o con un tipo incorrecto responde con el texto genérico `The input was not valid.`, en inglés. No es configurable sin reemplazar la fábrica de respuestas de validación, y el frontend nunca lo provoca, así que se acepta.
 
 [Volver arriba](#registro-de-decisiones-técnicas)
 
@@ -462,6 +491,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-14](#td-14) | Production database on Neon | Oct 19, 2026 |
 | [TD-15](#td-15) | Deployment on Render | Oct 19, 2026 |
 | [TD-16](#td-16) | API error contract | Oct 21, 2026 |
+| [TD-17](#td-17) | Input validation | Oct 21, 2026 |
 
 <a id="td-01"></a>
 
@@ -661,7 +691,7 @@ web/                      (React, outside the .NET solution)
 **Decision.**
 
 - Controllers with **`[ApiController]`** and **explicit DTOs** for requests and responses. EF Core entities never leave the API.
-- **Format validation with attributes** on the DTOs (`[Required]`, `[MaxLength]`). `[ApiController]` returns 400 automatically when they fail.
+- **Format validation with attributes** on the DTOs (`[Required]`, `[MaxLength]`). `[ApiController]` returns 400 automatically when they fail. Details are in [TD-17](#td-17).
 - **ProblemDetails** as the format for every HTTP error.
 - **`TimeProvider`** registered as a singleton to get the current time, always in UTC.
 - **OpenAPI** is only published in development.
@@ -844,7 +874,7 @@ web/                      (React, outside the .NET solution)
 | 429 Too Many Requests | The request limit was exceeded | Rate limiter |
 | 500 Internal Server Error | An unexpected failure: the database is down, a programming error | Global handler |
 
-- **Business errors with their own code:** besides the HTTP status, they carry a stable `code` field formatted as `module.reason`, lowercase with hyphens (`prediccion.cerrada`, `usuario.nombre-duplicado`). The catalog grows with each story; how the domain reports these errors is decided with the first business rule.
+- **Business errors with their own code:** besides the HTTP status, they carry a stable `code` field, in English since it is an identifier, formatted as `module.reason`, lowercase with hyphens (`prediction.closed`, `user.username-taken`). The catalog grows with each story; how the domain reports these errors is decided with the first business rule.
 - **Deliberate exception:** `/health` responds with plain text (`Healthy` or `Unhealthy`), since it is consumed by the hosting platform, not by API clients.
 
 **Rationale.**
@@ -860,6 +890,34 @@ web/                      (React, outside the .NET solution)
 - A missing static file also responds with JSON ProblemDetails.
 - Console logs do not include the `traceId` yet, so an error cannot be looked up from it. This is addressed by JSON log output (F1-03).
 - A single database exception produces three error entries in the logs (EF Core and the global handler). Log levels are reviewed in F1-03.
-- Default validation messages are in English (`The Message field is required.`), while the app is Spanish only. This is reviewed with input validation (F1-02).
+- Validation messages are written in Spanish on each DTO; see [TD-17](#td-17).
+
+<a id="td-17"></a>
+
+### TD-17 · Input validation
+
+**Context.** Attribute validation already worked, but messages came out in English, `errors` keys used the C# property name (`Message`) instead of the JSON name (`message`), and malformed JSON returned messages with internal class names, text positions and the controller parameter name.
+
+**Decision.**
+
+- **Format in DTOs, business rules in the domain.** Native `System.ComponentModel.DataAnnotations` attributes check the shape of the data (required, length, range, format). Anything that depends on system state, such as whether a prediction is still open, belongs in the domain. No FluentValidation.
+- **Every attribute carries a Spanish `ErrorMessage`**, since the frontend shows that text as-is next to the field. Messages use the attribute's placeholders instead of repeating values (`{1}` for the length in `MaxLength`).
+- **Input DTOs are records with `init` properties**, with attributes on each property. Output DTOs, which are not validated, can be positional records.
+- **`errors` keys use the JSON name**, through `SystemTextJsonValidationMetadataProvider`.
+- **No implicit `[Required]`** (`SuppressImplicitRequiredAttributeForNonNullableReferenceTypes`): every required field carries an explicit `[Required]`.
+- **JSON read errors expose no details** (`AllowInputFormatterExceptionMessages = false`), and an empty body has a Spanish message.
+- **Language:** identifiers (`errors` keys, business error `code` values, names in code) are in English; user-facing text is in Spanish.
+
+**Rationale.**
+
+- The app is Spanish only, so having the API send the final text is simpler than keeping a separate dictionary in the frontend.
+- In a positional record, attributes land on the constructor parameter rather than the property, and `SystemTextJsonValidationMetadataProvider` does not rename them. With properties, the key matches the JSON and the frontend can highlight the right field.
+- The implicit `[Required]` for non-nullable types produces English messages and errors about the controller parameter. Making it explicit keeps every rule visible in the DTO.
+- System.Text.Json messages reveal how the API is built without helping the client.
+
+**Consequences.**
+
+- Required text properties are declared with `= string.Empty` to satisfy nullability; `[Required]` still rejects empty text. The C# `required` modifier is not used, because System.Text.Json enforces it while reading the JSON and the error would arrive as a format error, without the Spanish message.
+- Malformed JSON or a wrong type responds with the generic text `The input was not valid.`, in English. It cannot be configured without replacing the validation response factory, and the frontend never triggers it, so it is accepted.
 
 [Back to top](#registro-de-decisiones-técnicas)

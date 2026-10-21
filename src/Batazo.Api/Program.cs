@@ -1,5 +1,6 @@
 using Batazo.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,8 +11,14 @@ builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddSingleton(TimeProvider.System);
 
 // Add services to the container.
-
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.ModelMetadataDetailsProviders.Add(new SystemTextJsonValidationMetadataProvider());
+    options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+    options.ModelBindingMessageProvider.SetMissingRequestBodyRequiredValueAccessor(
+        () => "El cuerpo de la solicitud es obligatorio.");
+})
+.AddJsonOptions(options => options.AllowInputFormatterExceptionMessages = false);
 builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
