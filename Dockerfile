@@ -7,7 +7,7 @@ RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend
 WORKDIR /src
-COPY global.json Directory.Build.props Directory.Packages.props .editorconfig ./
+COPY global.json Directory.Build.props Directory.Packages.props .editorconfig BannedSymbols.txt ./
 COPY src/Batazo.Domain/Batazo.Domain.csproj src/Batazo.Domain/
 COPY src/Batazo.Infrastructure/Batazo.Infrastructure.csproj src/Batazo.Infrastructure/
 COPY src/Batazo.Api/Batazo.Api.csproj src/Batazo.Api/

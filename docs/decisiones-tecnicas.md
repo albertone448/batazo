@@ -32,6 +32,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-16](#dt-16) | Contrato de errores de la API | 21 oct 2026 |
 | [DT-17](#dt-17) | Validación de entrada | 21 oct 2026 |
 | [DT-18](#dt-18) | Logging y configuración tipada | 21 oct 2026 |
+| [DT-19](#dt-19) | Reloj inyectable | 21 oct 2026 |
 
 <a id="dt-01"></a>
 
@@ -233,7 +234,7 @@ web/                      (React, fuera de la solución .NET)
 - Controladores con **`[ApiController]`** y **DTO explícitos** para solicitudes y respuestas. Las entidades de EF Core nunca salen de la API.
 - **Validación de formato con atributos** en los DTO (`[Required]`, `[MaxLength]`). `[ApiController]` responde 400 automáticamente si no se cumplen. El detalle está en [DT-17](#dt-17).
 - **ProblemDetails** como formato de todos los errores HTTP.
-- **`TimeProvider`** registrado como singleton para obtener la hora actual, siempre en UTC.
+- **`TimeProvider`** registrado como singleton para obtener la hora actual, siempre en UTC. El detalle está en [DT-19](#dt-19).
 - **OpenAPI** solo se publica en desarrollo.
 - **`/health`** con un health check que comprueba la conexión a la base: responde 200 si está bien y 503 si no.
 - El endpoint **`api/pings`** y su tabla son **temporales**: sirvieron para probar la cadena completa en la fase 0 y se eliminan en la fase 1.
@@ -490,6 +491,32 @@ web/                      (React, fuera de la solución .NET)
 - Se comprobó que la contraseña de la base no aparece en los logs. La regla de datos sensibles se vuelve a revisar al agregar Identity (F1-08) y el envío de correos (F1-15).
 - Mientras las migraciones se apliquen al arrancar, la primera en pedir la cadena es la migración, así que el error de una configuración inválida aparece desde ahí.
 
+<a id="dt-19"></a>
+
+### DT-19 · Reloj inyectable
+
+**Contexto.** La regla más delicada del dominio es el cierre de predicciones: se cierran exactamente a la hora de inicio del partido, y esa comparación debe probarse en el límite exacto. Si el código lee la hora del sistema, una prueba no puede fijar el instante.
+
+**Decisión.**
+
+- **`TimeProvider` de .NET**, registrado como `TimeProvider.System`. El código que necesita la hora actual la pide con `GetUtcNow()`. No se crea una abstracción propia como `IClock`.
+- **La hora del sistema está prohibida por el compilador.** `Microsoft.CodeAnalysis.BannedApiAnalyzers`, aplicado a todos los proyectos con `GlobalPackageReference`, lee `BannedSymbols.txt` y marca como error (RS0030) cualquier uso de `DateTime.Now`, `DateTime.UtcNow`, `DateTime.Today`, `DateTimeOffset.Now` y `DateTimeOffset.UtcNow`, también en las pruebas.
+- **El dominio recibe el instante como parámetro** (`DateTimeOffset now`), no el `TimeProvider`. La capa que coordina el caso de uso pide la hora y se la pasa.
+- **Pruebas:** las del dominio usan instantes fijos (`kickoff`, `kickoff.AddTicks(-1)`). Las de integración (fase 2) reemplazarán el `TimeProvider` registrado por `FakeTimeProvider` cuando haga falta.
+
+**Por qué.**
+
+- `TimeProvider` es parte de .NET desde la versión 8 y está pensado para sustituirse en pruebas, así que una interfaz propia no aportaría nada.
+- Revisar a mano que nadie use la hora del sistema depende de acordarse; con el analizador, el build falla en el editor, en la CI y en Docker.
+- Con el instante como parámetro, cada regla con fechas es una función pura: el mismo instante da siempre el mismo resultado, y la firma muestra que depende del momento.
+
+**Consecuencias.**
+
+- El `Dockerfile` copia `BannedSymbols.txt` junto con los demás archivos de configuración de la raíz, porque la compilación dentro de Docker también lo necesita.
+- El analizador es una dependencia solo de compilación; no forma parte de la aplicación publicada.
+- Las pruebas tampoco pueden usar la hora del sistema: cada prueba con fechas declara su instante.
+- La primera regla que aplica esta convención es el cierre de predicciones (F1-31).
+
 [Volver arriba](#registro-de-decisiones-técnicas)
 
 ---
@@ -524,6 +551,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-16](#td-16) | API error contract | Oct 21, 2026 |
 | [TD-17](#td-17) | Input validation | Oct 21, 2026 |
 | [TD-18](#td-18) | Logging and typed configuration | Oct 21, 2026 |
+| [TD-19](#td-19) | Injectable clock | Oct 21, 2026 |
 
 <a id="td-01"></a>
 
@@ -725,7 +753,7 @@ web/                      (React, outside the .NET solution)
 - Controllers with **`[ApiController]`** and **explicit DTOs** for requests and responses. EF Core entities never leave the API.
 - **Format validation with attributes** on the DTOs (`[Required]`, `[MaxLength]`). `[ApiController]` returns 400 automatically when they fail. Details are in [TD-17](#td-17).
 - **ProblemDetails** as the format for every HTTP error.
-- **`TimeProvider`** registered as a singleton to get the current time, always in UTC.
+- **`TimeProvider`** registered as a singleton to get the current time, always in UTC. Details are in [TD-19](#td-19).
 - **OpenAPI** is only published in development.
 - **`/health`** with a health check that tests the database connection: 200 when it works, 503 when it does not.
 - The **`api/pings`** endpoint and its table are **temporary**: they proved the full chain in phase 0 and are removed in phase 1.
@@ -981,5 +1009,31 @@ web/                      (React, outside the .NET solution)
 - EF Core's query design warnings (the `Query` category) are not visible in production; they show up in development, where queries are written.
 - The database password was confirmed absent from the logs. The sensitive data rule is reviewed again when Identity (F1-08) and email sending (F1-15) are added.
 - While migrations run on startup, the migration is the first to request the connection string, so an invalid configuration error surfaces from there.
+
+<a id="td-19"></a>
+
+### TD-19 · Injectable clock
+
+**Context.** The most delicate domain rule is prediction locking: predictions lock exactly at kickoff, and that comparison must be tested at the exact boundary. If code reads the system clock, a test cannot pin the instant.
+
+**Decision.**
+
+- **.NET's `TimeProvider`**, registered as `TimeProvider.System`. Code that needs the current time asks for it with `GetUtcNow()`. No custom abstraction such as `IClock` is created.
+- **The system clock is banned by the compiler.** `Microsoft.CodeAnalysis.BannedApiAnalyzers`, applied to every project through `GlobalPackageReference`, reads `BannedSymbols.txt` and flags as an error (RS0030) any use of `DateTime.Now`, `DateTime.UtcNow`, `DateTime.Today`, `DateTimeOffset.Now` and `DateTimeOffset.UtcNow`, tests included.
+- **The domain receives the instant as a parameter** (`DateTimeOffset now`), not the `TimeProvider`. The layer coordinating the use case asks for the time and passes it in.
+- **Tests:** domain tests use fixed instants (`kickoff`, `kickoff.AddTicks(-1)`). Integration tests (phase 2) will replace the registered `TimeProvider` with `FakeTimeProvider` when needed.
+
+**Rationale.**
+
+- `TimeProvider` has been part of .NET since version 8 and is designed to be replaced in tests, so a custom interface would add nothing.
+- Checking by hand that nobody uses the system clock relies on memory; with the analyzer, the build fails in the editor, in CI and in Docker.
+- With the instant as a parameter, every date-based rule is a pure function: the same instant always gives the same result, and the signature shows it depends on time.
+
+**Consequences.**
+
+- The `Dockerfile` copies `BannedSymbols.txt` along with the other root configuration files, since the build inside Docker needs it too.
+- The analyzer is a build-only dependency; it is not part of the published app.
+- Tests cannot use the system clock either: every date-based test declares its instant.
+- The first rule applying this convention is prediction locking (F1-31).
 
 [Back to top](#registro-de-decisiones-técnicas)
