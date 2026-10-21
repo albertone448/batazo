@@ -4,10 +4,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("Batazo")
-    ?? throw new InvalidOperationException("Connection string 'Batazo' is not configured.");
-
-builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 
 // Add services to the container.

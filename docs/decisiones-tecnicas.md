@@ -31,6 +31,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-15](#dt-15) | Despliegue en Render | 19 oct 2026 |
 | [DT-16](#dt-16) | Contrato de errores de la API | 21 oct 2026 |
 | [DT-17](#dt-17) | Validación de entrada | 21 oct 2026 |
+| [DT-18](#dt-18) | Logging y configuración tipada | 21 oct 2026 |
 
 <a id="dt-01"></a>
 
@@ -166,7 +167,7 @@ web/                      (React, fuera de la solución .NET)
 - **PostgreSQL 18** en todos los entornos: imagen `postgres:18` en local y la misma versión mayor en producción.
 - **EF Core 10 con Npgsql** y nombres en **`snake_case`** mediante `UseSnakeCaseNamingConvention` (paquete `EFCore.NamingConventions`). Las clases siguen en PascalCase en C#.
 - La configuración de cada entidad va en su propia clase con **`IEntityTypeConfiguration<T>`**, no dentro del `DbContext`.
-- Infrastructure expone un método **`AddInfrastructure`** que registra el `DbContext` y su health check. La API solo lo llama.
+- Infrastructure expone un método **`AddInfrastructure`** que recibe la configuración y registra sus opciones, el `DbContext` y su health check. La API solo lo llama.
 
 **Por qué.**
 
@@ -188,7 +189,7 @@ web/                      (React, fuera de la solución .NET)
 - **Desarrollo:** la cadena de conexión `ConnectionStrings:Batazo` vive en **user-secrets**, fuera de la carpeta del proyecto.
 - **Docker Compose local:** las credenciales de PostgreSQL vienen de un **`.env` sin versionar**. En el repositorio solo está **`.env.example`**, con valores de ejemplo. Compose falla si falta `POSTGRES_PASSWORD`, y el puerto de la base solo se publica en `127.0.0.1`.
 - **Producción:** variables de entorno del servicio, como `ConnectionStrings__Batazo` y `ASPNETCORE_ENVIRONMENT`.
-- La API **no arranca** si falta la cadena de conexión: lanza una excepción con un mensaje claro en vez de fallar más tarde.
+- La API **no arranca** si falta la cadena de conexión: se valida al arrancar con el patrón Options (ver [DT-18](#dt-18)), con un mensaje claro, en vez de fallar más tarde.
 
 **Por qué.**
 
@@ -427,8 +428,7 @@ web/                      (React, fuera de la solución .NET)
 **Consecuencias.**
 
 - Un archivo estático inexistente también responde ProblemDetails en JSON.
-- Hoy los logs de consola no incluyen el `traceId`, así que todavía no se puede buscar un error a partir de él. Se resuelve con la salida JSON de los logs (F1-03).
-- Una sola excepción de base de datos genera tres entradas de error en los logs (EF Core y el manejador global). Se revisa al configurar los niveles de log (F1-03).
+- Los logs de producción incluyen el `traceId` de cada petición, así que un error reportado por un usuario se encuentra a partir de él; ver [DT-18](#dt-18).
 - Los mensajes de validación se escriben en español en cada DTO; ver [DT-17](#dt-17).
 
 <a id="dt-17"></a>
@@ -458,6 +458,37 @@ web/                      (React, fuera de la solución .NET)
 
 - Las propiedades de texto obligatorias se declaran con `= string.Empty` para cumplir la nulabilidad; `[Required]` sigue rechazando el texto vacío. No se usa el modificador `required` de C#, porque System.Text.Json lo aplica al leer el JSON y el error llegaría como un error de formato, sin el mensaje en español.
 - Un JSON mal formado o con un tipo incorrecto responde con el texto genérico `The input was not valid.`, en inglés. No es configurable sin reemplazar la fábrica de respuestas de validación, y el frontend nunca lo provoca, así que se acepta.
+
+<a id="dt-18"></a>
+
+### DT-18 · Logging y configuración tipada
+
+**Contexto.** Los logs salían en el formato de texto por defecto, sin el `traceId` de la petición, cada consulta exitosa quedaba registrada y una sola excepción de base de datos generaba tres entradas de error. La configuración se leía con textos sueltos (`GetConnectionString("Batazo")`) y una comprobación a mano.
+
+**Decisión.**
+
+- **`ILogger` nativo, sin Serilog.** En producción, salida en **JSON** (`appsettings.Production.json`) con los *scopes* de cada petición (`TraceId`, `SpanId`, `RequestPath`, `ActionName`) y la hora en UTC con formato ISO 8601. En desarrollo se mantiene el formato de texto, más cómodo de leer en la terminal.
+- **Niveles en producción:** se hereda `Default: Information` y `Microsoft.AspNetCore: Warning`; además, `Microsoft.EntityFrameworkCore.Database.Command: Warning` (solo los comandos que fallan, con su SQL) y `Microsoft.EntityFrameworkCore.Query: None` (repetía la misma traza que el manejador global). En desarrollo se registra todo el SQL.
+- **Datos sensibles:** nunca se registran contraseñas, tokens, cookies ni cadenas de conexión. En concreto:
+  - `EnableSensitiveDataLogging` nunca se activa, así que los parámetros de SQL aparecen como `?`.
+  - No se usa `UseHttpLogging` con cuerpos ni encabezados.
+  - No se pasan a un log los DTO de autenticación ni secciones completas de la configuración.
+  - La página de excepciones para desarrolladores, que muestra encabezados y cookies, solo existe en `Development`.
+- **Configuración con el patrón Options:** cada grupo de ajustes es una clase enlazada a su sección con `Bind`, validada con atributos (`ValidateDataAnnotations`) y comprobada al arrancar (`ValidateOnStart`). Cada proyecto registra sus propias opciones. La primera es `ConnectionStringsOptions`, en Infrastructure. Los mensajes de estas validaciones van en inglés, porque los lee quien despliega la aplicación, no el usuario.
+
+**Por qué.**
+
+- En JSON, cada entrada es un objeto con campos que una herramienta puede filtrar, por ejemplo todos los errores de un `traceId`.
+- Con el `TraceId` en los logs, el que devuelve cada respuesta de error lleva directo a su traza.
+- Registrar cada consulta exitosa genera volumen sin valor. Con los niveles nuevos, una excepción de base de datos deja dos entradas: el SQL que falló y la traza completa.
+- Con Options, la configuración tiene tipos, se valida con los mismos atributos que los DTO y una configuración incompleta impide arrancar, en vez de fallar con la primera petición.
+
+**Consecuencias.**
+
+- Infrastructure depende de `Microsoft.Extensions.Options.ConfigurationExtensions` y `Microsoft.Extensions.Options.DataAnnotations`.
+- Las advertencias de diseño de consultas de EF Core (categoría `Query`) no se ven en producción; se ven en desarrollo, donde se escriben las consultas.
+- Se comprobó que la contraseña de la base no aparece en los logs. La regla de datos sensibles se vuelve a revisar al agregar Identity (F1-08) y el envío de correos (F1-15).
+- Mientras las migraciones se apliquen al arrancar, la primera en pedir la cadena es la migración, así que el error de una configuración inválida aparece desde ahí.
 
 [Volver arriba](#registro-de-decisiones-técnicas)
 
@@ -492,6 +523,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-15](#td-15) | Deployment on Render | Oct 19, 2026 |
 | [TD-16](#td-16) | API error contract | Oct 21, 2026 |
 | [TD-17](#td-17) | Input validation | Oct 21, 2026 |
+| [TD-18](#td-18) | Logging and typed configuration | Oct 21, 2026 |
 
 <a id="td-01"></a>
 
@@ -627,7 +659,7 @@ web/                      (React, outside the .NET solution)
 - **PostgreSQL 18** in every environment: the `postgres:18` image locally and the same major version in production.
 - **EF Core 10 with Npgsql** and **`snake_case`** names through `UseSnakeCaseNamingConvention` (the `EFCore.NamingConventions` package). Classes stay in PascalCase in C#.
 - Each entity is configured in its own **`IEntityTypeConfiguration<T>`** class, not inside the `DbContext`.
-- Infrastructure exposes an **`AddInfrastructure`** method that registers the `DbContext` and its health check. The API only calls it.
+- Infrastructure exposes an **`AddInfrastructure`** method that receives the configuration and registers its options, the `DbContext` and its health check. The API only calls it.
 
 **Rationale.**
 
@@ -649,7 +681,7 @@ web/                      (React, outside the .NET solution)
 - **Development:** the `ConnectionStrings:Batazo` connection string lives in **user-secrets**, outside the project folder.
 - **Local Docker Compose:** PostgreSQL credentials come from an **untracked `.env`**. The repository only contains **`.env.example`** with sample values. Compose fails if `POSTGRES_PASSWORD` is missing, and the database port is only published on `127.0.0.1`.
 - **Production:** service environment variables such as `ConnectionStrings__Batazo` and `ASPNETCORE_ENVIRONMENT`.
-- The API **refuses to start** without a connection string: it throws an exception with a clear message instead of failing later.
+- The API **refuses to start** without a connection string: it is validated at startup through the Options pattern (see [TD-18](#td-18)), with a clear message, instead of failing later.
 
 **Rationale.**
 
@@ -888,8 +920,7 @@ web/                      (React, outside the .NET solution)
 **Consequences.**
 
 - A missing static file also responds with JSON ProblemDetails.
-- Console logs do not include the `traceId` yet, so an error cannot be looked up from it. This is addressed by JSON log output (F1-03).
-- A single database exception produces three error entries in the logs (EF Core and the global handler). Log levels are reviewed in F1-03.
+- Production logs include each request's `traceId`, so an error reported by a user can be found from it; see [TD-18](#td-18).
 - Validation messages are written in Spanish on each DTO; see [TD-17](#td-17).
 
 <a id="td-17"></a>
@@ -919,5 +950,36 @@ web/                      (React, outside the .NET solution)
 
 - Required text properties are declared with `= string.Empty` to satisfy nullability; `[Required]` still rejects empty text. The C# `required` modifier is not used, because System.Text.Json enforces it while reading the JSON and the error would arrive as a format error, without the Spanish message.
 - Malformed JSON or a wrong type responds with the generic text `The input was not valid.`, in English. It cannot be configured without replacing the validation response factory, and the frontend never triggers it, so it is accepted.
+
+<a id="td-18"></a>
+
+### TD-18 · Logging and typed configuration
+
+**Context.** Logs used the default text format without the request's `traceId`, every successful query was logged, and a single database exception produced three error entries. Configuration was read through loose strings (`GetConnectionString("Batazo")`) and a manual check.
+
+**Decision.**
+
+- **Native `ILogger`, no Serilog.** In production, **JSON** output (`appsettings.Production.json`) with each request's scopes (`TraceId`, `SpanId`, `RequestPath`, `ActionName`) and UTC timestamps in ISO 8601 format. Development keeps the text format, which is easier to read in a terminal.
+- **Production levels:** `Default: Information` and `Microsoft.AspNetCore: Warning` are inherited; on top of that, `Microsoft.EntityFrameworkCore.Database.Command: Warning` (only failing commands, with their SQL) and `Microsoft.EntityFrameworkCore.Query: None` (it repeated the same trace as the global handler). Development logs all SQL.
+- **Sensitive data:** passwords, tokens, cookies and connection strings are never logged. Specifically:
+  - `EnableSensitiveDataLogging` is never turned on, so SQL parameters show up as `?`.
+  - `UseHttpLogging` is not used with bodies or headers.
+  - Authentication DTOs and whole configuration sections are never passed to a log.
+  - The developer exception page, which shows headers and cookies, only exists in `Development`.
+- **Configuration through the Options pattern:** each group of settings is a class bound to its section with `Bind`, validated with attributes (`ValidateDataAnnotations`) and checked at startup (`ValidateOnStart`). Each project registers its own options. The first one is `ConnectionStringsOptions`, in Infrastructure. These validation messages are in English, since they are read by whoever deploys the app, not by users.
+
+**Rationale.**
+
+- In JSON, each entry is an object with fields a tool can filter, for example every error for a given `traceId`.
+- With the `TraceId` in the logs, the one returned with each error response leads straight to its trace.
+- Logging every successful query adds volume without value. With the new levels, a database exception leaves two entries: the failing SQL and the full trace.
+- With Options, configuration is typed, validated with the same attributes as DTOs, and an incomplete configuration prevents startup instead of failing on the first request.
+
+**Consequences.**
+
+- Infrastructure depends on `Microsoft.Extensions.Options.ConfigurationExtensions` and `Microsoft.Extensions.Options.DataAnnotations`.
+- EF Core's query design warnings (the `Query` category) are not visible in production; they show up in development, where queries are written.
+- The database password was confirmed absent from the logs. The sensitive data rule is reviewed again when Identity (F1-08) and email sending (F1-15) are added.
+- While migrations run on startup, the migration is the first to request the connection string, so an invalid configuration error surfaces from there.
 
 [Back to top](#registro-de-decisiones-técnicas)
