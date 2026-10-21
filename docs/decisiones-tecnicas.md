@@ -29,6 +29,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-13](#dt-13) | Integración continua con GitHub Actions | 19 oct 2026 |
 | [DT-14](#dt-14) | Base de datos de producción en Neon | 19 oct 2026 |
 | [DT-15](#dt-15) | Despliegue en Render | 19 oct 2026 |
+| [DT-16](#dt-16) | Contrato de errores de la API | 21 oct 2026 |
 
 <a id="dt-01"></a>
 
@@ -243,7 +244,7 @@ web/                      (React, fuera de la solución .NET)
 - No publicar OpenAPI en producción reduce la información que se expone sobre la API.
 - Un health check que no mira la base diría que todo está bien con la base caída.
 
-**Consecuencias.** Hay que mapear cada entidad a su DTO. PostgreSQL guarda los instantes con precisión de microsegundos y .NET con 100 nanosegundos, así que un valor leído de la base puede diferir en el último dígito del que se tenía en memoria; las pruebas que comparen instantes deben tenerlo en cuenta. El 404 del fallback de `/api` (ver [DT-11](#dt-11)) no incluye `traceId`, a diferencia de los errores de los controladores; unificarlo queda para el contrato de errores de la fase 1.
+**Consecuencias.** Hay que mapear cada entidad a su DTO. PostgreSQL guarda los instantes con precisión de microsegundos y .NET con 100 nanosegundos, así que un valor leído de la base puede diferir en el último dígito del que se tenía en memoria; las pruebas que comparen instantes deben tenerlo en cuenta. El formato común de todos los errores se define en [DT-16](#dt-16).
 
 <a id="dt-10"></a>
 
@@ -388,6 +389,47 @@ web/                      (React, fuera de la solución .NET)
 
 **Consecuencias.** El plan gratuito duerme el servicio tras 15 minutos sin tráfico, y la primera visita después tarda en responder. El health check de Render llega directo al contenedor, sin encabezados reenviados, y genera el aviso "Failed to determine the https port"; se resuelve en F1-18. Si la versión nueva no pasa el health check, por ejemplo porque falló una migración, Render cancela el deploy y mantiene la anterior, según su documentación. No se ha probado en el plan gratuito. Si la migración se aplica pero la app falla después, la versión anterior queda corriendo con el esquema nuevo.
 
+<a id="dt-16"></a>
+
+### DT-16 · Contrato de errores de la API
+
+**Contexto.** Los errores de los controladores ya eran ProblemDetails, pero una excepción no controlada no tenía un manejador propio, las respuestas de error sin cuerpo (como un 404 de un archivo inexistente) llegaban vacías y no estaba definido qué significa cada código HTTP en Batazo.
+
+**Decisión.**
+
+- **Todo error de la API responde con ProblemDetails** (RFC 9457) e incluye `traceId`. `AddProblemDetails` registra el servicio común que usan los controladores, `Results.Problem` y los middleware de errores.
+- **Excepciones no controladas:** fuera de desarrollo, `UseExceptionHandler` responde un 500 genérico y el detalle queda en los logs. En desarrollo se usa la página de excepciones para desarrolladores.
+- **Errores sin cuerpo:** `UseStatusCodePages` los convierte en ProblemDetails.
+- **Significado de cada código:**
+
+| Código | Cuándo se usa | Quién lo produce |
+| --- | --- | --- |
+| 400 Bad Request | La solicitud no tiene el formato correcto (campo obligatorio vacío, valor fuera de rango) o incumple una regla de negocio sobre los datos enviados | Validación del DTO, con `errors` por campo; o el dominio, con `code` |
+| 401 Unauthorized | No hay sesión iniciada o expiró | Autenticación |
+| 403 Forbidden | Hay sesión, pero el usuario no tiene permiso para esa acción sobre un recurso que sí puede ver (por ejemplo, un miembro que no administra la quiniela intenta expulsar a otro) | Autorización |
+| 404 Not Found | El recurso no existe, **o el usuario no es miembro de la quiniela** a la que pertenece | Controladores y autorización |
+| 409 Conflict | La operación choca con el estado actual: un dato único repetido (nombre de usuario), una predicción sobre un partido ya cerrado, unirse a una quiniela de la que ya es miembro | El dominio, con `code` |
+| 429 Too Many Requests | Se superó el límite de solicitudes | Limitador de solicitudes |
+| 500 Internal Server Error | Un fallo inesperado: la base no responde, un error de programación | Manejador global |
+
+- **Errores de negocio con código propio:** además del código HTTP, llevan un campo `code` estable con el formato `modulo.motivo`, en minúsculas y con guiones (`prediccion.cerrada`, `usuario.nombre-duplicado`). El catálogo crece con cada historia; el mecanismo con el que el dominio informa estos errores se decide con la primera regla de negocio.
+- **Excepción consciente:** `/health` responde texto plano (`Healthy` o `Unhealthy`), porque lo consume la plataforma de despliegue, no los clientes de la API.
+
+**Por qué.**
+
+- Un solo formato permite que el frontend interprete cualquier error con el mismo código.
+- El `traceId` en cada respuesta permite relacionar un error que ve un usuario con su registro en los logs.
+- En producción nunca se exponen trazas, mensajes internos ni SQL: revelan cómo está construido el sistema y el cliente no puede hacer nada con ellos.
+- Responder 404 a quien no es miembro evita confirmar que una quiniela existe.
+- El código HTTP indica el tipo de problema, pero no cuál. El campo `code` permite que el frontend y las pruebas distingan errores concretos sin depender del texto del mensaje.
+
+**Consecuencias.**
+
+- Un archivo estático inexistente también responde ProblemDetails en JSON.
+- Hoy los logs de consola no incluyen el `traceId`, así que todavía no se puede buscar un error a partir de él. Se resuelve con la salida JSON de los logs (F1-03).
+- Una sola excepción de base de datos genera tres entradas de error en los logs (EF Core y el manejador global). Se revisa al configurar los niveles de log (F1-03).
+- Los mensajes de validación por defecto están en inglés (`The Message field is required.`), y la aplicación es solo en español. Se revisa con la validación de entrada (F1-02).
+
 [Volver arriba](#registro-de-decisiones-técnicas)
 
 ---
@@ -419,6 +461,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-13](#td-13) | Continuous integration with GitHub Actions | Oct 19, 2026 |
 | [TD-14](#td-14) | Production database on Neon | Oct 19, 2026 |
 | [TD-15](#td-15) | Deployment on Render | Oct 19, 2026 |
+| [TD-16](#td-16) | API error contract | Oct 21, 2026 |
 
 <a id="td-01"></a>
 
@@ -633,7 +676,7 @@ web/                      (React, outside the .NET solution)
 - Not publishing OpenAPI in production reduces what is exposed about the API.
 - A health check that ignores the database would report everything as fine while the database is down.
 
-**Consequences.** Every entity has to be mapped to its DTO. PostgreSQL stores instants with microsecond precision and .NET with 100-nanosecond precision, so a value read back from the database can differ in the last digit from the one held in memory; tests that compare instants must account for that. The 404 from the `/api` fallback (see [TD-11](#td-11)) does not include a `traceId`, unlike controller errors; aligning them is left for the phase 1 error contract.
+**Consequences.** Every entity has to be mapped to its DTO. PostgreSQL stores instants with microsecond precision and .NET with 100-nanosecond precision, so a value read back from the database can differ in the last digit from the one held in memory; tests that compare instants must account for that. The common format for every error is defined in [TD-16](#td-16).
 
 <a id="td-10"></a>
 
@@ -777,5 +820,46 @@ web/                      (React, outside the .NET solution)
 - Render terminates HTTPS at its load balancer and forwards requests over HTTP. Without forwarded headers, the app would see the proxy's scheme and IP and would build URLs with `http://`. The proxy's addresses are not fixed and the container is only reachable through it, so headers are accepted from any source.
 
 **Consequences.** The free plan puts the service to sleep after 15 minutes without traffic, and the first visit afterwards is slow. Render's health check reaches the container directly, without forwarded headers, and triggers the "Failed to determine the https port" warning; this is addressed in F1-18. If the new version fails its health check, for example because a migration failed, Render cancels the deploy and keeps the previous one, according to its documentation. This has not been tested on the free plan. If a migration is applied but the app fails afterwards, the previous version keeps running against the new schema.
+
+<a id="td-16"></a>
+
+### TD-16 · API error contract
+
+**Context.** Controller errors were already ProblemDetails, but unhandled exceptions had no dedicated handler, error responses without a body (such as a 404 for a missing file) went out empty, and the meaning of each HTTP status code in Batazo was not defined.
+
+**Decision.**
+
+- **Every API error responds with ProblemDetails** (RFC 9457) and includes a `traceId`. `AddProblemDetails` registers the shared service used by controllers, `Results.Problem` and the error middleware.
+- **Unhandled exceptions:** outside development, `UseExceptionHandler` returns a generic 500 and the details go to the logs. Development uses the developer exception page.
+- **Errors without a body:** `UseStatusCodePages` turns them into ProblemDetails.
+- **Meaning of each status code:**
+
+| Code | When it is used | Produced by |
+| --- | --- | --- |
+| 400 Bad Request | The request is malformed (a required field is empty, a value is out of range) or breaks a business rule about the submitted data | DTO validation, with per-field `errors`; or the domain, with a `code` |
+| 401 Unauthorized | There is no session, or it expired | Authentication |
+| 403 Forbidden | The user is signed in but lacks permission for that action on a resource they can see (for example, a member who does not manage the pool tries to remove someone) | Authorization |
+| 404 Not Found | The resource does not exist, **or the user is not a member of the pool** it belongs to | Controllers and authorization |
+| 409 Conflict | The operation clashes with the current state: a duplicate unique value (username), a prediction on a match that has already locked, joining a pool the user already belongs to | The domain, with a `code` |
+| 429 Too Many Requests | The request limit was exceeded | Rate limiter |
+| 500 Internal Server Error | An unexpected failure: the database is down, a programming error | Global handler |
+
+- **Business errors with their own code:** besides the HTTP status, they carry a stable `code` field formatted as `module.reason`, lowercase with hyphens (`prediccion.cerrada`, `usuario.nombre-duplicado`). The catalog grows with each story; how the domain reports these errors is decided with the first business rule.
+- **Deliberate exception:** `/health` responds with plain text (`Healthy` or `Unhealthy`), since it is consumed by the hosting platform, not by API clients.
+
+**Rationale.**
+
+- A single format lets the frontend handle any error with the same code.
+- A `traceId` on every response links an error a user sees to its log entry.
+- Production never exposes stack traces, internal messages or SQL: they reveal how the system is built and the client cannot act on them.
+- Returning 404 to non-members avoids confirming that a pool exists.
+- The HTTP status says what kind of problem occurred, not which one. The `code` field lets the frontend and tests tell specific errors apart without relying on message text.
+
+**Consequences.**
+
+- A missing static file also responds with JSON ProblemDetails.
+- Console logs do not include the `traceId` yet, so an error cannot be looked up from it. This is addressed by JSON log output (F1-03).
+- A single database exception produces three error entries in the logs (EF Core and the global handler). Log levels are reviewed in F1-03.
+- Default validation messages are in English (`The Message field is required.`), while the app is Spanish only. This is reviewed with input validation (F1-02).
 
 [Back to top](#registro-de-decisiones-técnicas)
