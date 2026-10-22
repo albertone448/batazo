@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiFetch, ApiError } from './api/client';
 
 type Ping = {
   id: number;
@@ -17,22 +18,21 @@ function App() {
     setError(null);
 
     try {
-      const response = await fetch('/api/pings', {
+      const created = await apiFetch<Ping>('/api/pings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message }),
       });
-
-      if (!response.ok) {
-        setError(`El servidor respondió ${response.status}.`);
-        return;
-      }
-
-      const created: Ping = await response.json();
       setPing(created);
       setMessage('');
-    } catch {
-      setError('No se pudo conectar con el servidor.');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const firstFieldError = Object.values(
+          error.problem?.errors ?? {},
+        ).flat()[0];
+        setError(firstFieldError ?? `El servidor respondió ${error.status}.`);
+      } else {
+        setError('No se pudo conectar con el servidor.');
+      }
     } finally {
       setIsSending(false);
     }
