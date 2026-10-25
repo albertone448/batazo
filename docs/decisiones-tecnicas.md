@@ -33,6 +33,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-17](#dt-17) | Validación de entrada | 21 oct 2026 |
 | [DT-18](#dt-18) | Logging y configuración tipada | 21 oct 2026 |
 | [DT-19](#dt-19) | Reloj inyectable | 21 oct 2026 |
+| [DT-20](#dt-20) | Base del frontend | 24 oct 2026 |
 
 <a id="dt-01"></a>
 
@@ -517,6 +518,42 @@ web/                      (React, fuera de la solución .NET)
 - Las pruebas tampoco pueden usar la hora del sistema: cada prueba con fechas declara su instante.
 - La primera regla que aplica esta convención es el cierre de predicciones (F1-31).
 
+<a id="dt-20"></a>
+
+### DT-20 · Base del frontend
+
+**Contexto.** El frontend era la plantilla de Vite con una página temporal que llamaba a la API con `fetch` directo y mostraba el código HTTP cuando algo fallaba. Todas las pantallas de la fase 1 necesitan lo mismo: llamar a la API, interpretar los errores de DT-16 y DT-17, separar rutas públicas de protegidas y mostrar los estados de carga, error y vacío de la misma forma.
+
+**Decisión.**
+
+- **Un solo cliente HTTP** (`web/src/api/client.ts`), con `fetch` nativo y sin librería. `apiFetch<T>` es la única puerta a la API: agrega `Content-Type: application/json` cuando hay cuerpo y lanza `ApiError` ante cualquier respuesta fuera de 2xx. `ApiError` lleva el status del protocolo (`response.status`) y el ProblemDetails, que solo se lee si el `Content-Type` es `application/problem+json`. Un fallo de red sube como el error original de `fetch`.
+- **Tipo `ProblemDetails` con todos los campos opcionales** y `errors` como `Record<string, string[]>`. Antes de usar el cuerpo se comprueba que sea un objeto. La respuesta de éxito se convierte a `T` sin validarla.
+- **TanStack Query v5** para el estado del servidor, con un único `QueryClient`. No reintenta los errores 4xx; los 5xx y los fallos de red se reintentan hasta 3 veces. El resto de los valores por defecto no cambia.
+- **React Router v8 en modo de datos** (`createBrowserRouter`), sin `loader`: los datos los pide TanStack Query. Una ruta raíz con `errorElement` muestra `RouteErrorPage` si una página falla al renderizarse.
+- **Rutas protegidas con un guardián** (`ProtectedRoute`) que depende de `useSessionStatus`, con tres estados: `checking`, `authenticated` y `anonymous`. Hasta F1-12 el hook devuelve siempre `anonymous`. Sin sesión, el guardián redirige a `/login` con `replace`.
+- **Componentes de estado:** `LoadingState` (`role="status"`), `ErrorState` (`role="alert"`, con reintento opcional) y `EmptyState` (título, frase y como mucho una acción). `getErrorMessage` traduce cada error a un título y una descripción para personas. Nunca se muestran códigos HTTP, trazas ni el `title` que genera ASP.NET Core, y lo que no es un `ApiError` recibe un mensaje genérico. Los 400 y 409 no pasan por aquí: los formularios muestran los textos en español que manda el backend.
+- **Sin estilos propios por ahora.** Se quitaron los estilos de la plantilla de Vite; los de la marca llegan con F1-06.
+
+**Por qué.**
+
+- Con una sola puerta, todos los errores llegan con la misma forma, y lo que falta (el encabezado antifalsificación de F1-12) se agrega en un solo lugar. Para esto `fetch` alcanza.
+- El status del protocolo siempre existe; el cuerpo no. Un 502 del proxy de Vite o de Render no trae ProblemDetails.
+- Validar cada respuesta de éxito exigiría una librería o un guard por tipo. La API es propia y vive en el mismo repositorio, y el riesgo queda concentrado en una sola línea.
+- Repetir un 4xx no cambia el resultado, y con los valores por defecto retrasaría el error unos 7 segundos.
+- El modo de datos da una pantalla de error controlada por ruta y deja las rutas en una lista fácil de leer. No se usan `loader` para no tener dos lugares que piden datos.
+- Un hook con un valor fijo evita inventar el contrato de un endpoint que todavía no existe y evita guardar la sesión en `localStorage`. F1-12 solo cambia el cuerpo del hook. Los tres estados evitan mandar a `/login` a alguien con sesión mientras se confirma.
+- El guardián es comodidad para el usuario, no seguridad: la autorización la decide siempre el servidor.
+- Los mensajes siguen la regla del sistema de diseño de no mostrar detalles técnicos. El 404 no dice "no existe" porque DT-16 lo usa también para quien no es miembro. Un `TypeError` puede ser un fallo de red o un error de programación, así que no se presenta como "sin conexión".
+
+**Consecuencias.**
+
+- `react-router-dom` no se usa, porque la v8 lo eliminó: se importa de `react-router` y de `react-router/dom`.
+- `apiFetch` falla con respuestas sin cuerpo (204). Se contempla con el primer endpoint que las devuelva.
+- No hay pruebas automatizadas del frontend, como decidió el backlog; el guardián y los mensajes se prueban a mano.
+- Las mutaciones conservan los reintentos por defecto de TanStack Query; se revisan con la primera.
+- Con la API local apagada, el proxy de Vite responde 502, así que en desarrollo ese caso llega como `ApiError` y no como fallo de red.
+- Hasta F1-06 la aplicación se ve con los estilos por defecto del navegador. El favicon SVG de la marca ya está en `web/public`.
+
 [Volver arriba](#registro-de-decisiones-técnicas)
 
 ---
@@ -552,6 +589,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-17](#td-17) | Input validation | Oct 21, 2026 |
 | [TD-18](#td-18) | Logging and typed configuration | Oct 21, 2026 |
 | [TD-19](#td-19) | Injectable clock | Oct 21, 2026 |
+| [TD-20](#td-20) | Frontend foundation | Oct 24, 2026 |
 
 <a id="td-01"></a>
 
@@ -1035,5 +1073,41 @@ web/                      (React, outside the .NET solution)
 - The analyzer is a build-only dependency; it is not part of the published app.
 - Tests cannot use the system clock either: every date-based test declares its instant.
 - The first rule applying this convention is prediction locking (F1-31).
+
+<a id="td-20"></a>
+
+### TD-20 · Frontend foundation
+
+**Context.** The frontend was the Vite template with a temporary page that called the API with a plain `fetch` and showed the HTTP status code when something failed. Every phase 1 screen needs the same things: call the API, understand the errors from TD-16 and TD-17, separate public and protected routes, and show loading, error and empty states consistently.
+
+**Decision.**
+
+- **A single HTTP client** (`web/src/api/client.ts`), built on native `fetch` with no library. `apiFetch<T>` is the only way into the API: it adds `Content-Type: application/json` when there is a body and throws `ApiError` for any response outside 2xx. `ApiError` carries the protocol status (`response.status`) and the ProblemDetails, which is only read when the `Content-Type` is `application/problem+json`. A network failure surfaces as the original `fetch` error.
+- **A `ProblemDetails` type with every field optional** and `errors` as `Record<string, string[]>`. The body is checked to be an object before it is used. Successful responses are cast to `T` without validation.
+- **TanStack Query v5** for server state, with a single `QueryClient`. It does not retry 4xx errors; 5xx errors and network failures are retried up to 3 times. All other defaults are unchanged.
+- **React Router v8 in data mode** (`createBrowserRouter`), without `loader`: data is fetched by TanStack Query. A root route with an `errorElement` shows `RouteErrorPage` if a page fails while rendering.
+- **Protected routes behind a guard** (`ProtectedRoute`) that depends on `useSessionStatus`, with three states: `checking`, `authenticated` and `anonymous`. Until F1-12 the hook always returns `anonymous`. Without a session, the guard redirects to `/login` with `replace`.
+- **State components:** `LoadingState` (`role="status"`), `ErrorState` (`role="alert"`, with an optional retry) and `EmptyState` (title, sentence and at most one action). `getErrorMessage` turns each error into a human-readable title and description. HTTP status codes, stack traces and the `title` generated by ASP.NET Core are never shown, and anything that is not an `ApiError` gets a generic message. 400 and 409 responses don't go through here: forms show the Spanish messages sent by the backend.
+- **No custom styles for now.** The Vite template styles were removed; brand styles come with F1-06.
+
+**Rationale.**
+
+- With a single entry point, every error has the same shape, and what's still missing (the anti-forgery header in F1-12) gets added in one place. Plain `fetch` is enough for this.
+- The protocol status always exists; the body doesn't. A 502 from the Vite proxy or from Render carries no ProblemDetails.
+- Validating every successful response would require a library or one guard per type. The API is our own and lives in the same repository, and the risk stays in a single line.
+- Retrying a 4xx doesn't change the outcome, and with the defaults it would delay the error by about 7 seconds.
+- Data mode gives each route a controlled error screen and keeps the routes in an easy-to-read list. Loaders aren't used, to avoid having two places that fetch data.
+- A hook with a fixed value avoids inventing the contract of an endpoint that doesn't exist yet, and avoids keeping the session in `localStorage`. F1-12 only changes the hook's body. The three states keep someone with a session from being sent to `/login` while it's being confirmed.
+- The guard is a convenience for the user, not security: authorization is always decided by the server.
+- The messages follow the design system's rule of never showing technical details. The 404 message doesn't say "doesn't exist" because TD-16 also uses 404 for non-members. A `TypeError` can be a network failure or a programming error, so it isn't presented as "no connection".
+
+**Consequences.**
+
+- `react-router-dom` isn't used, since v8 removed it: imports come from `react-router` and `react-router/dom`.
+- `apiFetch` fails on responses without a body (204). That gets handled with the first endpoint that returns one.
+- There are no automated frontend tests, as decided in the backlog; the guard and the messages are tested by hand.
+- Mutations keep TanStack Query's default retries; they get reviewed with the first one.
+- With the local API stopped, the Vite proxy returns 502, so in development that case arrives as an `ApiError`, not as a network failure.
+- Until F1-06 the app uses the browser's default styles. The brand's SVG favicon is already in `web/public`.
 
 [Back to top](#registro-de-decisiones-técnicas)
