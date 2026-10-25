@@ -1,11 +1,12 @@
 import { Navigate, Outlet } from 'react-router';
 import { useSessionStatus } from '../auth/useSessionStatus';
+import { LoadingState } from '../components/LoadingState';
 
 export function ProtectedRoute() {
   const status = useSessionStatus();
 
   if (status === 'checking') {
-    return null;
+    return <LoadingState label="Comprobando tu sesión…" />;
   }
 
   if (status === 'anonymous') {
