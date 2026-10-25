@@ -41,7 +41,8 @@ export function getErrorMessage(error: unknown): ErrorMessage {
     case 504:
       return {
         title: 'No pudimos conectar con Batazo',
-        description: 'El servidor no responde. Inténtalo de nuevo en un momento.',
+        description:
+          'El servidor no responde. Inténtalo de nuevo en un momento.',
       };
     default:
       return GENERIC_ERROR;
