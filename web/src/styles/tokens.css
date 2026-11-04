@@ -1,0 +1,95 @@
+/* Generado por scripts/build-tokens.js a partir de tokens.json. No editar a mano. */
+
+:root {
+  color-scheme: light dark;
+  --batazo-navy-950: #071435;
+  --batazo-navy-900: #0c2256;
+  --batazo-navy-850: #0f2150;
+  --batazo-navy-800: #16306a;
+  --batazo-navy-700: #1e3d85;
+  --batazo-navy-600: #2a55c9;
+  --batazo-navy-100: #e6ecf7;
+  --batazo-lime-400: #b5ee4d;
+  --batazo-lime-500: #a3dd38;
+  --batazo-lime-700: #4d7a0e;
+  --batazo-lime-100: #eef9d6;
+  --batazo-ink-900: #0f172a;
+  --batazo-slate-600: #4b5876;
+  --batazo-slate-400: #7a88a6;
+  --batazo-slate-200: #dfe5ef;
+  --batazo-slate-100: #eef2f8;
+  --batazo-paper: #f6f8fc;
+  --color-bg: #f6f8fc;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #eef2f8;
+  --color-text: #0f172a;
+  --color-text-muted: #4b5876;
+  --color-text-on-brand: #ffffff;
+  --color-text-on-accent: #0c2256;
+  --color-border: #dfe5ef;
+  --color-border-strong: #7a88a6;
+  --color-brand-primary: #0c2256;
+  --color-brand-primary-hover: #1e3d85;
+  --color-brand-accent: #b5ee4d;
+  --color-brand-accent-hover: #a3dd38;
+  --color-brand-accent-text: #4d7a0e;
+  --color-action-primary-bg: #0c2256;
+  --color-action-primary-bg-hover: #1e3d85;
+  --color-action-primary-text: #ffffff;
+  --color-action-secondary-border: #0c2256;
+  --color-action-secondary-text: #0c2256;
+  --color-link: #2a55c9;
+  --color-focus: #2a55c9;
+  --color-selected-bg: #eef9d6;
+  --color-selected-indicator: #0c2256;
+  --color-disabled-bg: #eef2f8;
+  --color-disabled-text: #98a2b3;
+  --color-success: #166534;
+  --color-success-bg: #e8f5ec;
+  --color-danger: #b42318;
+  --color-danger-bg: #fdecea;
+  --color-warning: #b54708;
+  --color-warning-bg: #fef3e7;
+  --color-info: #1d4ed8;
+  --color-info-bg: #eaf0fd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #071435;
+    --color-surface: #0f2150;
+    --color-surface-raised: #16306a;
+    --color-surface-sunken: #0a1a42;
+    --color-text: #eef2fa;
+    --color-text-muted: #a9b6d3;
+    --color-text-on-brand: #ffffff;
+    --color-text-on-accent: #071435;
+    --color-border: #24396b;
+    --color-border-strong: #6b80b3;
+    --color-brand-primary: #0c2256;
+    --color-brand-primary-hover: #1e3d85;
+    --color-brand-accent: #b5ee4d;
+    --color-brand-accent-hover: #a3dd38;
+    --color-brand-accent-text: #b5ee4d;
+    --color-action-primary-bg: #b5ee4d;
+    --color-action-primary-bg-hover: #a3dd38;
+    --color-action-primary-text: #071435;
+    --color-action-secondary-border: #6b80b3;
+    --color-action-secondary-text: #eef2fa;
+    --color-link: #8fb1ff;
+    --color-focus: #b5ee4d;
+    --color-selected-bg: #1e3a2a;
+    --color-selected-indicator: #b5ee4d;
+    --color-disabled-bg: #13265a;
+    --color-disabled-text: #5a6fa0;
+    --color-success: #4ade80;
+    --color-success-bg: #10302a;
+    --color-danger: #ff8a80;
+    --color-danger-bg: #3a1c2a;
+    --color-warning: #fdc655;
+    --color-warning-bg: #352e1e;
+    --color-info: #8fb1ff;
+    --color-info-bg: #16306a;
+  }
+}
