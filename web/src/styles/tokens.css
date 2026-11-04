@@ -53,6 +53,38 @@
   --color-warning-bg: #fef3e7;
   --color-info: #1d4ed8;
   --color-info-bg: #eaf0fd;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-icon: 24%;
+  --radius-full: 999px;
+  --shadow-raised:
+    0 1px 2px rgba(12, 34, 86, 0.06), 0 4px 12px rgba(12, 34, 86, 0.08);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --text-display: 800 40px/44px var(--font-display);
+  --text-display-letter-spacing: -0.01em;
+  --text-h1: 700 32px/40px var(--font-sans);
+  --text-h1-letter-spacing: -0.01em;
+  --text-h2: 700 24px/32px var(--font-sans);
+  --text-h3: 600 18px/26px var(--font-sans);
+  --text-body: 400 16px/24px var(--font-sans);
+  --text-body-sm: 400 14px/20px var(--font-sans);
+  --text-label: 600 14px/20px var(--font-sans);
+  --text-caption: 600 12px/16px var(--font-sans);
+  --text-caption-letter-spacing: 0.04em;
+  --text-score: 700 28px/32px var(--font-sans);
+  --text-points: 700 16px/24px var(--font-sans);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -91,5 +123,14 @@
     --color-warning-bg: #352e1e;
     --color-info: #8fb1ff;
     --color-info-bg: #16306a;
+    --shadow-raised:
+      0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 16px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
   }
 }
