@@ -1,0 +1,17 @@
+/* Subconjunto latin de Fontsource 5.3.0: cubre el español y la puntuación general. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-Variable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/Montserrat-ExtraBold.woff2') format('woff2');
+}
