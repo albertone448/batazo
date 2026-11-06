@@ -34,6 +34,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-18](#dt-18) | Logging y configuración tipada | 21 oct 2026 |
 | [DT-19](#dt-19) | Reloj inyectable | 21 oct 2026 |
 | [DT-20](#dt-20) | Base del frontend | 24 oct 2026 |
+| [DT-21](#dt-21) | Identidad visual: tokens, fuentes y recursos de marca | 5 nov 2026 |
 
 <a id="dt-01"></a>
 
@@ -554,6 +555,41 @@ web/                      (React, fuera de la solución .NET)
 - Con la API local apagada, el proxy de Vite responde 502, así que en desarrollo ese caso llega como `ApiError` y no como fallo de red.
 - Hasta F1-06 la aplicación se ve con los estilos por defecto del navegador. El favicon SVG de la marca ya está en `web/public`.
 
+<a id="dt-21"></a>
+
+### DT-21 · Identidad visual: tokens, fuentes y recursos de marca
+
+**Contexto.** El sistema de diseño de Batazo define los colores, la tipografía, el espaciado y los recursos de marca. Publica `tokens.json`, pero no un `tokens.css`, y pide que el CSS del repositorio sea una copia generada, nunca editada a mano, sin colores en hexadecimal dentro de los CSS Modules. Hasta ahora la aplicación usaba los estilos por defecto del navegador.
+
+**Decisión.**
+
+- **Tokens generados por un script propio.** `web/src/styles/tokens.json` es una copia del archivo del sistema de diseño. `npm run tokens` ejecuta `web/scripts/build-tokens.js`, que genera `web/src/styles/tokens.css`, y después Prettier le da formato. Un valor simple va en `:root`; un valor con `light` y `dark` va en `:root` y en `@media (prefers-color-scheme: dark)`. Las duraciones pasan a `0ms` con `prefers-reduced-motion: reduce`. La tipografía se convierte en `--font-sans`, `--font-display` y una variable `--text-<estilo>` por cada estilo de la escala, pensada para la propiedad `font`. Sin Style Dictionary ni otra librería.
+- **Modo oscuro según el sistema operativo**, sin selector manual de tema por ahora.
+- **`global.css` mínimo:** `box-sizing`, fondo, texto y tipografía del `body`, la escala en `h1` a `h3`, enlaces subrayados y el anillo de foco de la marca en `:focus-visible`.
+- **Fuentes alojadas en el repositorio:** Inter variable y Montserrat 800, en `.woff2` con el subconjunto latin, sacados de los paquetes de Fontsource 5.3.0 con `npm pack`, sin instalarlos. Cada una va con su licencia (`Inter-OFL.txt` y `Montserrat-OFL.txt`) y se declara en `fonts.css` con `font-display: swap`.
+- **Recursos de marca del kit oficial:** logos y símbolos en `web/src/assets/brand/`, y favicons, ícono de iOS e imagen para compartir en `web/public/`, con sus etiquetas en `index.html`.
+- **Componentes con CSS Modules y solo tokens semánticos** (`--color-*`), nunca primitivas ni hexadecimales. `ErrorState` sigue el componente Alert del sistema de diseño, `EmptyState` pinta el símbolo mono con una máscara CSS y `LoadingState` muestra un círculo giratorio que se detiene con movimiento reducido.
+
+**Por qué.**
+
+- El script hace que "cambio el JSON y regenero" no dependa de nadie, y con unas 80 líneas se entiende entero; para un JSON de este tamaño una librería no aporta.
+- El sistema de diseño indica seguir `prefers-color-scheme` por defecto, y el selector manual no está en los criterios de F1-06.
+- Con los tokens semánticos, cada componente pasa a modo oscuro sin código propio y mantiene los contrastes que el sistema de diseño ya calculó.
+- Alojar las fuentes evita depender de Google en producción, como pide el manual de marca. El subconjunto latin cubre todo el español y deja a Inter en 48 KB. `npm pack` entrega los `.woff2` con una versión fija sin agregar una dependencia.
+- La máscara CSS permite que el símbolo tome el color del tema sin meter el SVG en línea, lo que exigiría un plugin nuevo.
+
+**Consecuencias.**
+
+- Para cambiar un valor de marca, se copia el `tokens.json` nuevo del sistema de diseño y se ejecuta `npm run tokens`. `tokens.css` no se edita a mano.
+- `font-variant-numeric: tabular-nums` se declara en el CSS Module después de `font: var(--text-…)`, porque la propiedad `font` lo reinicia.
+- Un carácter fuera del subconjunto latin se muestra con la fuente del sistema. Actualizar las fuentes es manual: otro `npm pack` con la versión nueva.
+- Diferencias con las vistas previas del sistema de diseño: el título del error usa `--text-label` (14 px) en lugar de 15 px, el relleno del botón usa `--space-2` en lugar de 10 px, el símbolo del estado vacío lleva `aria-hidden` en lugar de `role="img"`, y hay dos archivos de licencia en lugar de un `OFL.txt`. El indicador de `LoadingState` no está definido en el sistema de diseño.
+- El botón de reintento de `ErrorState` tiene estilo propio hasta que exista el componente `Button`.
+- `og:image` apunta a `https://batazo.onrender.com`; si cambia el dominio, hay que actualizarlo.
+- Los íconos de 192 y 512 px (PWA, fase 4) están en el repositorio, pero no entran en el build porque nadie los importa.
+- Los SVG de marca son una reconstrucción. El arte final los reemplaza con los mismos nombres de archivo.
+- Las páginas todavía no tienen márgenes laterales; llegan con la estructura general de la interfaz.
+
 [Volver arriba](#registro-de-decisiones-técnicas)
 
 ---
@@ -590,6 +626,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-18](#td-18) | Logging and typed configuration | Oct 21, 2026 |
 | [TD-19](#td-19) | Injectable clock | Oct 21, 2026 |
 | [TD-20](#td-20) | Frontend foundation | Oct 24, 2026 |
+| [TD-21](#td-21) | Visual identity: tokens, fonts and brand assets | Nov 5, 2026 |
 
 <a id="td-01"></a>
 
@@ -1109,5 +1146,40 @@ web/                      (React, outside the .NET solution)
 - Mutations keep TanStack Query's default retries; they get reviewed with the first one.
 - With the local API stopped, the Vite proxy returns 502, so in development that case arrives as an `ApiError`, not as a network failure.
 - Until F1-06 the app uses the browser's default styles. The brand's SVG favicon is already in `web/public`.
+
+<a id="td-21"></a>
+
+### TD-21 · Visual identity: tokens, fonts and brand assets
+
+**Context.** Batazo's design system defines the colors, typography, spacing and brand assets. It publishes `tokens.json` but no `tokens.css`, and asks for the repository's CSS to be a generated copy, never edited by hand, with no hex colors inside CSS Modules. Until now the app used the browser's default styles.
+
+**Decision.**
+
+- **Tokens generated by our own script.** `web/src/styles/tokens.json` is a copy of the design system's file. `npm run tokens` runs `web/scripts/build-tokens.js`, which generates `web/src/styles/tokens.css`, and then Prettier formats it. A plain value goes in `:root`; a value with `light` and `dark` goes in `:root` and in `@media (prefers-color-scheme: dark)`. Durations drop to `0ms` under `prefers-reduced-motion: reduce`. Typography becomes `--font-sans`, `--font-display` and one `--text-<style>` variable per style in the scale, meant for the `font` property. No Style Dictionary or other library.
+- **Dark mode follows the operating system**, with no manual theme switcher for now.
+- **A minimal `global.css`:** `box-sizing`, the `body` background, text and typography, the scale on `h1` to `h3`, underlined links and the brand focus ring on `:focus-visible`.
+- **Fonts hosted in the repository:** Inter variable and Montserrat 800, as latin-subset `.woff2` files taken from the Fontsource 5.3.0 packages with `npm pack`, without installing them. Each comes with its license (`Inter-OFL.txt` and `Montserrat-OFL.txt`) and is declared in `fonts.css` with `font-display: swap`.
+- **Brand assets from the official kit:** logos and symbols in `web/src/assets/brand/`, and favicons, the iOS icon and the share image in `web/public/`, with their tags in `index.html`.
+- **Components use CSS Modules and only semantic tokens** (`--color-*`), never primitives or hex values. `ErrorState` follows the design system's Alert component, `EmptyState` paints the mono symbol with a CSS mask, and `LoadingState` shows a spinning ring that stops under reduced motion.
+
+**Rationale.**
+
+- With the script, "change the JSON and regenerate" doesn't depend on anyone, and at around 80 lines it can be understood in full; for a JSON this size a library adds nothing.
+- The design system says to follow `prefers-color-scheme` by default, and a manual switcher isn't in F1-06's criteria.
+- With semantic tokens, every component switches to dark mode without code of its own and keeps the contrast ratios the design system already calculated.
+- Hosting the fonts avoids depending on Google in production, as the brand guide asks. The latin subset covers all of Spanish and keeps Inter at 48 KB. `npm pack` provides the `.woff2` files at a pinned version without adding a dependency.
+- The CSS mask lets the symbol take the theme color without inlining the SVG, which would require a new plugin.
+
+**Consequences.**
+
+- To change a brand value, copy the new `tokens.json` from the design system and run `npm run tokens`. `tokens.css` is never edited by hand.
+- `font-variant-numeric: tabular-nums` must be declared in the CSS Module after `font: var(--text-…)`, because the `font` property resets it.
+- A character outside the latin subset falls back to the system font. Updating the fonts is manual: another `npm pack` with the new version.
+- Differences from the design system previews: the error title uses `--text-label` (14 px) instead of 15 px, the button padding uses `--space-2` instead of 10 px, the empty state symbol uses `aria-hidden` instead of `role="img"`, and there are two license files instead of a single `OFL.txt`. The `LoadingState` indicator isn't defined in the design system.
+- `ErrorState`'s retry button has its own styles until the `Button` component exists.
+- `og:image` points to `https://batazo.onrender.com`; if the domain changes, it has to be updated.
+- The 192 and 512 px icons (PWA, phase 4) are in the repository but don't reach the build, since nothing imports them.
+- The brand SVGs are a reconstruction. The final artwork replaces them under the same file names.
+- Pages don't have side margins yet; those come with the overall page structure.
 
 [Back to top](#registro-de-decisiones-técnicas)
