@@ -1,0 +1,38 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--text-body);
+}
+
+h1 {
+  font: var(--text-h1);
+  letter-spacing: var(--text-h1-letter-spacing);
+  text-wrap: balance;
+}
+
+h2 {
+  font: var(--text-h2);
+  text-wrap: balance;
+}
+
+h3 {
+  font: var(--text-h3);
+  text-wrap: balance;
+}
+
+a {
+  color: var(--color-link);
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
