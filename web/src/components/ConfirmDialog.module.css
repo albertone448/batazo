@@ -1,0 +1,33 @@
+.dialog {
+  width: min(100% - 2 * var(--space-4), 28rem);
+  padding: var(--space-6);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: var(--shadow-raised);
+}
+
+/* No hay token para el fondo del modal; un negro translúcido funciona en los dos temas. */
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.title {
+  margin: 0;
+  font: var(--text-h3);
+}
+
+.description {
+  margin: var(--space-2) 0 0;
+  font: var(--text-body-sm);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
