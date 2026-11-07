@@ -1,4 +1,7 @@
+using Batazo.Domain.Users;
+using Batazo.Infrastructure.Identity;
 using Batazo.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +25,25 @@ public static class DependencyInjection
             options.UseNpgsql(connectionStrings.Batazo)
                 .UseSnakeCaseNamingConvention();
         });
+
+        services.AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+                options.User.AllowedUserNameCharacters = UsernameRules.AllowedCharacters;
+
+                options.Password.RequiredLength = 8;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireNonAlphanumeric = true;
+                options.Password.RequireDigit = false;
+
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.Lockout.AllowedForNewUsers = true;
+            })
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<BatazoDbContext>()
+            .AddUserValidator<UsernameValidator>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<BatazoDbContext>("database");
