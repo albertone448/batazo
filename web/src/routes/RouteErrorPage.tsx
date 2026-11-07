@@ -5,9 +5,11 @@ export function RouteErrorPage() {
   const error = useRouteError();
 
   return (
-    <main>
+    <>
       <ErrorState error={error} />
-      <Link to="/">Volver al inicio</Link>
-    </main>
+      <p>
+        <Link to="/">Volver al inicio</Link>
+      </p>
+    </>
   );
 }

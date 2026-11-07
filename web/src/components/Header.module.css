@@ -1,0 +1,123 @@
+.header {
+  background: var(--color-brand-primary);
+  color: var(--color-text-on-brand);
+}
+
+/* El fondo de la barra no cambia con el tema; el lima se ve sobre azul en ambos. */
+.header :focus-visible {
+  outline-color: var(--color-brand-accent);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 960px;
+  min-height: 60px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.logo {
+  display: block;
+  width: auto;
+  height: 28px;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  margin-left: auto;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--color-text-on-brand);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-on-brand);
+  font: var(--text-label);
+  cursor: pointer;
+}
+
+.nav {
+  display: none;
+  flex-basis: 100%;
+  flex-direction: column;
+  padding-bottom: var(--space-3);
+}
+
+.navOpen {
+  display: flex;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link,
+.logout {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-2);
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--color-text-on-brand);
+  font: var(--text-label);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link[aria-current='page'] {
+  border-bottom-color: var(--color-brand-accent);
+}
+
+.logout {
+  align-self: flex-start;
+}
+
+@media (min-width: 640px) {
+  .bar {
+    flex-wrap: nowrap;
+  }
+
+  .menuButton {
+    display: none;
+  }
+
+  .nav {
+    display: flex;
+    flex: 1;
+    flex-basis: auto;
+    flex-direction: row;
+    align-items: center;
+    padding-bottom: 0;
+  }
+
+  .links {
+    flex-direction: row;
+    gap: var(--space-1);
+  }
+
+  .link,
+  .logout {
+    min-height: 60px;
+  }
+
+  .logout {
+    align-self: auto;
+    margin-left: auto;
+  }
+}
