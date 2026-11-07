@@ -36,6 +36,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-20](#dt-20) | Base del frontend | 24 oct 2026 |
 | [DT-21](#dt-21) | Identidad visual: tokens, fuentes y recursos de marca | 5 nov 2026 |
 | [DT-22](#dt-22) | Componentes base de la interfaz | 6 nov 2026 |
+| [DT-23](#dt-23) | Configuración de ASP.NET Core Identity | 6 nov 2026 |
 
 <a id="dt-01"></a>
 
@@ -623,6 +624,38 @@ web/                      (React, fuera de la solución .NET)
 - Los mensajes de error de un campo no se anuncian solos al aparecer. Cómo avisar de los errores de un formulario completo se decide con el primer formulario real (F1-09).
 - La tarjeta de partido, la tabla de posiciones con la fila propia y el encabezado se construyen sobre estos componentes en sus propias tareas.
 
+<a id="dt-23"></a>
+
+### DT-23 · Configuración de ASP.NET Core Identity
+
+**Contexto.** F1-08 pide guardar usuarios con ASP.NET Core Identity: correo único, nombre de usuario único sin distinguir mayúsculas y de 3 a 20 caracteres (letras, números y guion bajo), contraseña de al menos 8 caracteres con mayúscula, minúscula y símbolo, y bloqueo de 15 minutos tras 5 intentos fallidos. El registro, el inicio de sesión y la cookie llegan en tareas posteriores.
+
+**Decisión.**
+
+- **`ApplicationUser` hereda de `IdentityUser<Guid>` y vive en Infrastructure.** El dominio no depende de Identity; cuando necesite un usuario, lo referencia por su `Guid`.
+- **`BatazoDbContext` hereda de `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`.** Las tablas de Identity entran por migración, con la misma convención snake_case que el resto.
+- **`AddIdentityCore` en lugar de `AddIdentity`.** Registra usuarios, roles, contraseñas y bloqueo, pero no la autenticación por cookie. La cookie se configura en F1-10, junto con el inicio de sesión.
+- **La regla del nombre de usuario está en el dominio** (`UsernameRules`), con pruebas unitarias. Un validador de Identity (`UsernameValidator`) la aplica al crear o editar un usuario, porque Identity no tiene opciones de longitud. Los caracteres permitidos son letras ASCII, números y guion bajo.
+- **Correo único en dos capas:** `RequireUniqueEmail` en Identity y un índice único sobre el correo normalizado en la base de datos. La unicidad del nombre de usuario sin distinguir mayúsculas ya la da Identity: compara el nombre normalizado, que tiene índice único.
+- **Contraseña y bloqueo** con las opciones de Identity: 8 caracteres, mayúscula, minúscula y símbolo, sin exigir número; 5 intentos y 15 minutos, también para usuarios nuevos.
+- **La tabla de roles se crea ya**, aunque el rol de administrador global llega en F1-14.
+
+**Por qué.**
+
+- `Guid` evita identificadores secuenciales que se puedan adivinar o recorrer en una URL.
+- Con `AddIdentityCore` no queda configurado un esquema de autenticación sin terminar: sin la cookie no hay nada que pueda autenticar ni redirigir por accidente.
+- Poner la regla del nombre de usuario en el dominio permite probarla sin base de datos ni Identity, y deja un solo lugar que la define.
+- La validación de Identity consulta antes de insertar; dos registros simultáneos con el mismo correo pasarían los dos. El índice único hace que la base de datos rechace el segundo.
+- Crear la tabla de roles ahora evita una migración más adelante solo para agregarla.
+
+**Consecuencias.**
+
+- Las tablas se llaman `asp_net_users`, `asp_net_roles` y similares. Renombrarlas no aporta nada por ahora.
+- Las columnas del nombre de usuario quedan con un máximo de 20 caracteres.
+- Los mensajes de error de Identity vienen en inglés (por ejemplo, "Username 'x' is already taken."). Se traducen en F1-09, con el registro, que es donde llegan a la interfaz.
+- "Letras" significa letras sin tilde ni ñ. Si se quieren permitir, hay que cambiar `UsernameRules` y su prueba.
+- El bloqueo solo actúa cuando exista el inicio de sesión (F1-10), que es el que cuenta los intentos fallidos.
+
 [Volver arriba](#registro-de-decisiones-técnicas)
 
 ---
@@ -661,6 +694,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-20](#td-20) | Frontend foundation | Oct 24, 2026 |
 | [TD-21](#td-21) | Visual identity: tokens, fonts and brand assets | Nov 5, 2026 |
 | [TD-22](#td-22) | Base UI components | Nov 6, 2026 |
+| [TD-23](#td-23) | ASP.NET Core Identity configuration | Nov 6, 2026 |
 
 <a id="td-01"></a>
 
@@ -1247,5 +1281,37 @@ web/                      (React, outside the .NET solution)
 - `TeamBadge` is decorative (`aria-hidden`): the team name has to be in the text next to it.
 - A field's error messages aren't announced on their own when they appear. How to announce the errors of a whole form is decided with the first real form (F1-09).
 - The match card, the standings table with the user's row, and the header are built on top of these components in their own tasks.
+
+<a id="td-23"></a>
+
+### TD-23 · ASP.NET Core Identity configuration
+
+**Context.** F1-08 calls for storing users with ASP.NET Core Identity: unique email, a username that is unique regardless of case and 3 to 20 characters long (letters, digits and underscore), a password of at least 8 characters with an uppercase letter, a lowercase letter and a symbol, and a 15-minute lockout after 5 failed attempts. Sign-up, sign-in and the cookie come in later tasks.
+
+**Decision.**
+
+- **`ApplicationUser` inherits from `IdentityUser<Guid>` and lives in Infrastructure.** The domain doesn't depend on Identity; when it needs a user, it refers to it by its `Guid`.
+- **`BatazoDbContext` inherits from `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`.** The Identity tables come in through a migration, with the same snake_case convention as everything else.
+- **`AddIdentityCore` instead of `AddIdentity`.** It registers users, roles, passwords and lockout, but not cookie authentication. The cookie is configured in F1-10, along with sign-in.
+- **The username rule lives in the domain** (`UsernameRules`), with unit tests. An Identity validator (`UsernameValidator`) applies it when a user is created or updated, since Identity has no length options. Allowed characters are ASCII letters, digits and underscore.
+- **Unique email in two layers:** `RequireUniqueEmail` in Identity and a unique index on the normalized email in the database. Case-insensitive username uniqueness already comes from Identity: it compares the normalized name, which has a unique index.
+- **Password and lockout** use Identity's options: 8 characters, uppercase, lowercase and a symbol, without requiring a digit; 5 attempts and 15 minutes, including for new users.
+- **The roles table is created now**, even though the global admin role arrives in F1-14.
+
+**Rationale.**
+
+- `Guid` avoids sequential IDs that can be guessed or walked through in a URL.
+- With `AddIdentityCore` there's no half-configured authentication scheme: without the cookie, nothing can authenticate or redirect by accident.
+- Keeping the username rule in the domain lets it be tested without a database or Identity, and leaves a single place that defines it.
+- Identity's validation queries before inserting; two simultaneous sign-ups with the same email would both pass. The unique index makes the database reject the second one.
+- Creating the roles table now avoids a later migration just to add it.
+
+**Consequences.**
+
+- The tables are named `asp_net_users`, `asp_net_roles` and so on. Renaming them adds nothing for now.
+- The username columns are capped at 20 characters.
+- Identity's error messages are in English (for example, "Username 'x' is already taken."). They get translated in F1-09, with sign-up, which is where they reach the UI.
+- "Letters" means letters without accents or ñ. Allowing them requires changing `UsernameRules` and its test.
+- Lockout only takes effect once sign-in exists (F1-10), since that's what counts failed attempts.
 
 [Back to top](#registro-de-decisiones-técnicas)
