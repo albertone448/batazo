@@ -1,0 +1,21 @@
+.badge {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font: var(--text-caption);
+  text-transform: uppercase;
+}
+
+.lightText {
+  color: var(--color-text-on-brand);
+}
+
+.darkText {
+  color: var(--color-text-on-accent);
+}
