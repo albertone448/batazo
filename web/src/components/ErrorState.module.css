@@ -27,12 +27,4 @@
 
 .retry {
   margin-top: var(--space-3);
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
-  border: 2px solid var(--color-action-secondary-border);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-action-secondary-text);
-  font: var(--text-label);
-  cursor: pointer;
 }

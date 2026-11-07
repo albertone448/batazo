@@ -1,5 +1,6 @@
 import styles from './ErrorState.module.css';
 import { getErrorMessage } from '../api/errorMessages';
+import { Button } from './Button';
 
 type ErrorStateProps = {
   error: unknown;
@@ -30,9 +31,13 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
         <h2 className={styles.title}>{title}</h2>
         <p className={styles.description}>{description}</p>
         {onRetry && (
-          <button type="button" className={styles.retry} onClick={onRetry}>
+          <Button
+            variant="secondary"
+            className={styles.retry}
+            onClick={onRetry}
+          >
             Intentar de nuevo
-          </button>
+          </Button>
         )}
       </div>
     </div>
