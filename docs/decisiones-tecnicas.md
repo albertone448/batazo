@@ -35,6 +35,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-19](#dt-19) | Reloj inyectable | 21 oct 2026 |
 | [DT-20](#dt-20) | Base del frontend | 24 oct 2026 |
 | [DT-21](#dt-21) | Identidad visual: tokens, fuentes y recursos de marca | 5 nov 2026 |
+| [DT-22](#dt-22) | Componentes base de la interfaz | 6 nov 2026 |
 
 <a id="dt-01"></a>
 
@@ -590,6 +591,38 @@ web/                      (React, fuera de la solución .NET)
 - Los SVG de marca son una reconstrucción. El arte final los reemplaza con los mismos nombres de archivo.
 - Las páginas todavía no tienen márgenes laterales; llegan con la estructura general de la interfaz.
 
+<a id="dt-22"></a>
+
+### DT-22 · Componentes base de la interfaz
+
+**Contexto.** F1-06 pide un conjunto de componentes reutilizables con la identidad de la marca: botón con estado de carga, campo con error, tarjeta, tabla, alerta, diálogo de confirmación y distintivo de equipo. El sistema de diseño tiene vistas previas para algunos (botón, alerta, tabla de posiciones, tarjeta de partido) y para otros solo tokens.
+
+**Decisión.**
+
+- **Componentes propios en `web/src/components/`, sin librería**, cada uno con su CSS Module y solo tokens semánticos.
+- **`Button` y `TextField` aceptan todas las props del elemento nativo** (`<button>` e `<input>`) y suman las suyas: `variant` e `isLoading` en el botón; `label` y `error` en el campo. El botón es `type="button"` por defecto y queda deshabilitado mientras carga. El campo genera su `id` con `useId`, conecta la etiqueta con `htmlFor` y el error con `aria-describedby`, y marca `aria-invalid`.
+- **`Alert`** con cuatro tonos (éxito, error, advertencia e información), ícono y `role="alert"` solo para error. `ErrorState` pasa a usar `Alert` y `Button`.
+- **`Card`** es un contenedor con borde y sin sombra, que puede renderizarse como `div`, `section`, `article` o `li`.
+- **`Table`** envuelve una `<table>` real con `<caption>`. Las filas las escribe quien la usa; las celdas numéricas se marcan con `data-numeric`. El contenedor se desplaza en horizontal en móvil y se puede recorrer con el teclado.
+- **`ConfirmDialog`** usa el elemento nativo `<dialog>` con `showModal()`.
+- **`TeamBadge`** pinta un círculo con el color del equipo y su código, y elige texto claro u oscuro según el contraste calculado con la fórmula de WCAG (`web/src/lib/color.ts`). Si el color no es un hexadecimal válido, usa los colores neutros.
+
+**Por qué.**
+
+- Aceptar las props nativas evita reinventar la API de un botón o un input, y el resto del código los usa igual que a los elementos de HTML.
+- `<dialog>` con `showModal()` ya resuelve lo difícil de un modal accesible: deja inerte el resto de la página, cierra con Escape, pone el foco en el primer control y lo devuelve al cerrar. Escribirlo a mano o con una librería es más código y más riesgo.
+- El color de un equipo es un dato, no un estilo de la marca, así que no puede ser un token. Calcular el color del texto garantiza que el código se lea con cualquier color.
+- Una sola `Alert` evita que cada pantalla arme su propio mensaje con colores sueltos.
+
+**Consecuencias.**
+
+- El foco inicial del diálogo cae en "Cancelar", el primer botón: en una acción destructiva, la opción segura queda a mano.
+- El fondo del diálogo (`::backdrop`) usa un negro translúcido escrito directo en el CSS, porque no hay token para eso.
+- El color de cada equipo se espera como `#RRGGBB`. Cuando se diseñe el modelo de equipos (F1-19) hay que validar ese formato también en el servidor.
+- `TeamBadge` es decorativo (`aria-hidden`): el nombre del equipo tiene que estar en el texto de al lado.
+- Los mensajes de error de un campo no se anuncian solos al aparecer. Cómo avisar de los errores de un formulario completo se decide con el primer formulario real (F1-09).
+- La tarjeta de partido, la tabla de posiciones con la fila propia y el encabezado se construyen sobre estos componentes en sus propias tareas.
+
 [Volver arriba](#registro-de-decisiones-técnicas)
 
 ---
@@ -627,6 +660,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-19](#td-19) | Injectable clock | Oct 21, 2026 |
 | [TD-20](#td-20) | Frontend foundation | Oct 24, 2026 |
 | [TD-21](#td-21) | Visual identity: tokens, fonts and brand assets | Nov 5, 2026 |
+| [TD-22](#td-22) | Base UI components | Nov 6, 2026 |
 
 <a id="td-01"></a>
 
@@ -1181,5 +1215,37 @@ web/                      (React, outside the .NET solution)
 - The 192 and 512 px icons (PWA, phase 4) are in the repository but don't reach the build, since nothing imports them.
 - The brand SVGs are a reconstruction. The final artwork replaces them under the same file names.
 - Pages don't have side margins yet; those come with the overall page structure.
+
+<a id="td-22"></a>
+
+### TD-22 · Base UI components
+
+**Context.** F1-06 calls for a set of reusable components with the brand identity: a button with a loading state, a field with an error, a card, a table, an alert, a confirmation dialog and a team badge. The design system has previews for some of them (button, alert, standings table, match card) and only tokens for the rest.
+
+**Decision.**
+
+- **Our own components in `web/src/components/`, no library**, each with its CSS Module and only semantic tokens.
+- **`Button` and `TextField` accept every prop of the native element** (`<button>` and `<input>`) and add their own: `variant` and `isLoading` on the button; `label` and `error` on the field. The button defaults to `type="button"` and is disabled while loading. The field generates its `id` with `useId`, links the label with `htmlFor` and the error with `aria-describedby`, and sets `aria-invalid`.
+- **`Alert`** with four tones (success, error, warning and info), an icon, and `role="alert"` only for errors. `ErrorState` now uses `Alert` and `Button`.
+- **`Card`** is a container with a border and no shadow, which can render as a `div`, `section`, `article` or `li`.
+- **`Table`** wraps a real `<table>` with a `<caption>`. Rows are written by the caller; numeric cells are marked with `data-numeric`. The container scrolls horizontally on mobile and can be reached with the keyboard.
+- **`ConfirmDialog`** uses the native `<dialog>` element with `showModal()`.
+- **`TeamBadge`** draws a circle in the team's color with its code, and picks light or dark text based on the contrast calculated with the WCAG formula (`web/src/lib/color.ts`). If the color isn't a valid hex value, it falls back to neutral colors.
+
+**Rationale.**
+
+- Accepting native props avoids reinventing the API of a button or an input, and the rest of the code uses them just like the HTML elements.
+- `<dialog>` with `showModal()` already handles the hard parts of an accessible modal: it makes the rest of the page inert, closes on Escape, focuses the first control and restores focus on close. Writing that by hand or adding a library means more code and more risk.
+- A team's color is data, not a brand style, so it can't be a token. Calculating the text color guarantees the code is readable on any color.
+- A single `Alert` keeps every screen from building its own message with ad hoc colors.
+
+**Consequences.**
+
+- The dialog's initial focus lands on "Cancelar", the first button: for a destructive action, the safe option is closest at hand.
+- The dialog's backdrop (`::backdrop`) uses a translucent black written directly in the CSS, since there's no token for it.
+- Each team's color is expected as `#RRGGBB`. When the team model is designed (F1-19), that format has to be validated on the server too.
+- `TeamBadge` is decorative (`aria-hidden`): the team name has to be in the text next to it.
+- A field's error messages aren't announced on their own when they appear. How to announce the errors of a whole form is decided with the first real form (F1-09).
+- The match card, the standings table with the user's row, and the header are built on top of these components in their own tasks.
 
 [Back to top](#registro-de-decisiones-técnicas)
