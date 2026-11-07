@@ -1,28 +1,5 @@
-.alert {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-  max-width: 560px;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
-.icon {
-  flex: none;
-  margin-top: 2px;
-}
-
-.title {
-  margin: 0;
-  font: var(--text-label);
-}
-
 .description {
-  margin: var(--space-1) 0 0;
-  font: var(--text-body-sm);
-  color: var(--color-text);
+  margin: 0;
 }
 
 .retry {
