@@ -6,8 +6,6 @@ public static class UsernameRules
 
     public const int MaxLength = 20;
 
-    public const string AllowedCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
-
     public static bool IsValid(string? username)
     {
         return username is not null
