@@ -5,6 +5,7 @@ import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { ProfilePage } from '../pages/ProfilePage';
+import { RegisterPage } from '../pages/RegisterPage';
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RouteErrorPage } from './RouteErrorPage';
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
             ],
           },
           { path: '/login', element: <LoginPage /> },
+          { path: '/registro', element: <RegisterPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

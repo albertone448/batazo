@@ -41,10 +41,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -56,5 +53,22 @@ export async function apiFetch<T>(
     throw new ApiError(response.status, await readProblemDetails(response));
   }
 
+  return response;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await request(path, init);
   return (await response.json()) as T;
+}
+
+// For endpoints that answer 204 No Content: calling response.json() on an
+// empty body throws, so these never try to read it.
+export async function apiFetchNoContent(
+  path: string,
+  init?: RequestInit,
+): Promise<void> {
+  await request(path, init);
 }
