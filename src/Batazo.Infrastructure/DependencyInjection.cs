@@ -29,7 +29,8 @@ public static class DependencyInjection
         services.AddIdentityCore<ApplicationUser>(options =>
             {
                 options.User.RequireUniqueEmail = true;
-                options.User.AllowedUserNameCharacters = UsernameRules.AllowedCharacters;
+                // UsernameValidator applies UsernameRules; Identity's own character check would report the same rule twice.
+                options.User.AllowedUserNameCharacters = string.Empty;
 
                 options.Password.RequiredLength = 8;
                 options.Password.RequireUppercase = true;
@@ -43,7 +44,8 @@ public static class DependencyInjection
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<BatazoDbContext>()
-            .AddUserValidator<UsernameValidator>();
+            .AddUserValidator<UsernameValidator>()
+            .AddErrorDescriber<SpanishIdentityErrorDescriber>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<BatazoDbContext>("database");

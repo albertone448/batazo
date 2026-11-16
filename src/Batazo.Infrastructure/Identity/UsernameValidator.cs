@@ -5,7 +5,7 @@ namespace Batazo.Infrastructure.Identity;
 
 // Identity no tiene opciones para la longitud del nombre de usuario; la regla
 // vive en el dominio y este validador la aplica al crear o editar un usuario.
-internal sealed class UsernameValidator : IUserValidator<ApplicationUser>
+public sealed class UsernameValidator : IUserValidator<ApplicationUser>
 {
     public const string ErrorCode = "InvalidUserNameFormat";
 
