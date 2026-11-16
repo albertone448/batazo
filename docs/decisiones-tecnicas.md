@@ -37,6 +37,7 @@ Cada entrada tiene el mismo formato: contexto, decisión, por qué y consecuenci
 | [DT-21](#dt-21) | Identidad visual: tokens, fuentes y recursos de marca | 5 nov 2026 |
 | [DT-22](#dt-22) | Componentes base de la interfaz | 6 nov 2026 |
 | [DT-23](#dt-23) | Configuración de ASP.NET Core Identity | 6 nov 2026 |
+| [DT-24](#dt-24) | Registro de usuario y convención de formularios | 15 nov 2026 |
 
 <a id="dt-01"></a>
 
@@ -634,7 +635,7 @@ web/                      (React, fuera de la solución .NET)
 
 - **`ApplicationUser` hereda de `IdentityUser<Guid>` y vive en Infrastructure.** El dominio no depende de Identity; cuando necesite un usuario, lo referencia por su `Guid`.
 - **`BatazoDbContext` hereda de `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`.** Las tablas de Identity entran por migración, con la misma convención snake_case que el resto.
-- **`AddIdentityCore` en lugar de `AddIdentity`.** Registra usuarios, roles, contraseñas y bloqueo, pero no la autenticación por cookie. La cookie se configura en F1-10, junto con el inicio de sesión.
+- **`AddIdentityCore` en lugar de `AddIdentity`.** Registra usuarios, roles, contraseñas y bloqueo, pero no la autenticación por cookie. La cookie se configuró después, en F1-09 con el registro (ver [DT-24](#dt-24)).
 - **La regla del nombre de usuario está en el dominio** (`UsernameRules`), con pruebas unitarias. Un validador de Identity (`UsernameValidator`) la aplica al crear o editar un usuario, porque Identity no tiene opciones de longitud. Los caracteres permitidos son letras ASCII, números y guion bajo.
 - **Correo único en dos capas:** `RequireUniqueEmail` en Identity y un índice único sobre el correo normalizado en la base de datos. La unicidad del nombre de usuario sin distinguir mayúsculas ya la da Identity: compara el nombre normalizado, que tiene índice único.
 - **Contraseña y bloqueo** con las opciones de Identity: 8 caracteres, mayúscula, minúscula y símbolo, sin exigir número; 5 intentos y 15 minutos, también para usuarios nuevos.
@@ -652,9 +653,54 @@ web/                      (React, fuera de la solución .NET)
 
 - Las tablas se llaman `asp_net_users`, `asp_net_roles` y similares. Renombrarlas no aporta nada por ahora.
 - Las columnas del nombre de usuario quedan con un máximo de 20 caracteres.
-- Los mensajes de error de Identity vienen en inglés (por ejemplo, "Username 'x' is already taken."). Se traducen en F1-09, con el registro, que es donde llegan a la interfaz.
+- Los mensajes de error de Identity vienen en inglés (por ejemplo, "Username 'x' is already taken."). Se tradujeron en F1-09, con el registro (ver [DT-24](#dt-24)).
 - "Letras" significa letras sin tilde ni ñ. Si se quieren permitir, hay que cambiar `UsernameRules` y su prueba.
 - El bloqueo solo actúa cuando exista el inicio de sesión (F1-10), que es el que cuenta los intentos fallidos.
+
+[Volver arriba](#registro-de-decisiones-técnicas)
+
+<a id="dt-24"></a>
+
+### DT-24 · Registro de usuario y convención de formularios
+
+**Contexto.** F1-09 pide un registro abierto con correo, nombre de usuario, contraseña y confirmación, con errores por campo validados también en el servidor (incluido el nombre de usuario ya tomado), y que al registrarse la sesión quede iniciada. Es el primer endpoint real y el primer formulario, así que fija el patrón de los siguientes.
+
+**Decisión.**
+
+- **Contrato.** `POST /api/auth/register` en un `AuthController`, donde F1-10 agregará el inicio y el cierre de sesión. La entrada es `RegisterRequest` (`email`, `username`, `password`, `confirmPassword`). Si sale bien responde **204 sin cuerpo**: la cookie es el resultado. Si falla responde **400 con `errors` por campo**, incluidos el correo y el nombre ya tomados (no 409, porque el criterio pide el error en su campo).
+- **El DTO valida la forma** (obligatorios, formato de correo, máximos de 256 y 128 caracteres, contraseñas iguales). La política de contraseña y la regla del nombre de usuario las aplica Identity, para no repetirlas en el backend.
+- **Errores de Identity por código.** `UserManager.CreateAsync` devuelve `IdentityError` con un `Code`. El controlador asigna cada código a su campo con `nameof(IdentityErrorDescriber.X)`. Un código desconocido va a la clave vacía, que el formulario muestra como error general.
+- **Mensajes de Identity en español** con `SpanishIdentityErrorDescriber`, que hereda de `IdentityErrorDescriber` y conserva los códigos. Se traduce cada código que el controlador asigna a un campo; los demás se traducen en la historia que los use. Los mensajes no repiten lo que escribió el usuario.
+- **Una sola validación del nombre de usuario.** `AllowedUserNameCharacters` queda vacío, así Identity se salta su propia revisión de caracteres y solo `UsernameValidator` (que aplica `UsernameRules`) valida el formato. Se borró `UsernameRules.AllowedCharacters`, que quedó sin uso.
+- **La cookie se configura en Api, no en Infrastructure:** `AddSignInManager` sobre un `IdentityBuilder` creado en `Program.cs`, `AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies()` y `UseAuthentication` antes de `UseAuthorization`.
+- **Atributos de la cookie explícitos:** HttpOnly, SameSite Lax, 14 días que se renuevan con el uso, y `Secure` siempre fuera de desarrollo (`SameAsRequest` en desarrollo). Al registrarse, `SignInAsync(user, isPersistent: true)`.
+- **Frontend.** `apiFetchNoContent` para respuestas 204 y `getFieldErrors` para convertir los `errors` de un 400 en un texto por campo. Las mutaciones de TanStack Query no reintentan (`retry ?? 0` por defecto), y así se deja. La página `/registro` sigue el brand book: tarjeta de 400 px como máximo, logotipo horizontal de 40 px con `space-12` de aire y titular `display`. Al terminar muestra "Tu cuenta está lista" en vez de redirigir, de forma provisional hasta F1-12.
+- **Convención para todos los formularios** (`useFormValidation`, en `web/src/lib`):
+  - Un campo muestra su error del navegador cuando el usuario lo deja con algo escrito, o al enviar.
+  - Desde entonces se valida en cada tecla: el error desaparece apenas se corrige y vuelve si se rompe.
+  - Un error del servidor queda hasta que se edita ese campo.
+  - Al enviar con errores, el foco va al primer campo inválido. Los errores generales (clave vacía, 429, 5xx) van en un `Alert` de peligro.
+  - El navegador usa una copia de las reglas de formato de la API (`web/src/auth/accountRules.ts`) con un comentario que apunta al origen. El servidor sigue siendo la autoridad. Sin biblioteca de formularios.
+
+**Por qué.**
+
+- Con 204 el cliente no recibe datos que todavía no necesita; los del usuario actual llegan con su propio endpoint en F1-10, sin adelantar su forma.
+- Asignar los errores por código, y no por texto, sigue funcionando aunque cambie la redacción. Con `nameof`, un código mal escrito no compila.
+- El describer es el punto de extensión que Identity prevé para los mensajes: quedan en un solo lugar y fuera del controlador.
+- Infrastructure no referencia ASP.NET Core, y la cookie es HTTP. `AddSignInManager` además registra `ISecurityStampValidator`, que la cookie de Identity usa en cada petición autenticada; registrar `SignInManager` a mano lo dejaría afuera.
+- Los atributos coinciden con los valores por defecto, pero escritos quedan visibles y no dependen de una versión. Con `Secure` siempre en producción, la cookie sale protegida aunque falle la lectura de `X-Forwarded-Proto` detrás de Render. Se comprobó con la imagen de producción en Docker.
+- Validar desde la primera tecla interrumpe mientras se escribe; esperar al envío obliga a adivinar qué falló. Al salir del campo es el punto medio.
+- Con `aria-describedby`, el lector de pantalla lee la etiqueta y el error del campo enfocado; con cuatro campos no hace falta un resumen de errores.
+
+**Consecuencias.**
+
+- **Orden de validación de Identity.** `CreateAsync` valida la contraseña primero y, si falla, no valida el usuario. Un nombre tomado con una contraseña débil se informa en el segundo intento. Se acepta; la validación en el navegador hace que casi no pase.
+- **Enumeración de correos.** "Ese correo ya está registrado" confirma que un correo tiene cuenta. Se acepta para una app privada entre amigos: evitarlo del todo exige confirmar el correo por email. La limitación de solicitudes lo reducirá cuando llegue.
+- **Registros simultáneos.** Si dos personas registran el mismo nombre o correo al mismo tiempo, el índice único rechaza el segundo, pero la respuesta es 500 en vez de 400. Queda pendiente; es poco probable.
+- **Claves de Data Protection.** Hasta F1-10 viven dentro del contenedor, así que cada despliegue en Render invalida las cookies. Se acepta porque todavía no hay usuarios reales.
+- **Reglas en dos lugares.** Cambiar el formato del correo, del nombre o la política de contraseña obliga a cambiar la API y `accountRules.ts`.
+- **CSRF.** El POST de registro no tiene token antifalsificación hasta F1-11. Con SameSite Lax, el riesgo mientras tanto es bajo.
+- `UsernameValidator` pasó a ser público para que la API conozca su código de error.
 
 [Volver arriba](#registro-de-decisiones-técnicas)
 
@@ -695,6 +741,7 @@ Every entry follows the same format: context, decision, rationale and consequenc
 | [TD-21](#td-21) | Visual identity: tokens, fonts and brand assets | Nov 5, 2026 |
 | [TD-22](#td-22) | Base UI components | Nov 6, 2026 |
 | [TD-23](#td-23) | ASP.NET Core Identity configuration | Nov 6, 2026 |
+| [TD-24](#td-24) | User sign-up and form conventions | Nov 15, 2026 |
 
 <a id="td-01"></a>
 
@@ -1292,7 +1339,7 @@ web/                      (React, outside the .NET solution)
 
 - **`ApplicationUser` inherits from `IdentityUser<Guid>` and lives in Infrastructure.** The domain doesn't depend on Identity; when it needs a user, it refers to it by its `Guid`.
 - **`BatazoDbContext` inherits from `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`.** The Identity tables come in through a migration, with the same snake_case convention as everything else.
-- **`AddIdentityCore` instead of `AddIdentity`.** It registers users, roles, passwords and lockout, but not cookie authentication. The cookie is configured in F1-10, along with sign-in.
+- **`AddIdentityCore` instead of `AddIdentity`.** It registers users, roles, passwords and lockout, but not cookie authentication. The cookie was configured later, in F1-09 with sign-up (see [TD-24](#td-24)).
 - **The username rule lives in the domain** (`UsernameRules`), with unit tests. An Identity validator (`UsernameValidator`) applies it when a user is created or updated, since Identity has no length options. Allowed characters are ASCII letters, digits and underscore.
 - **Unique email in two layers:** `RequireUniqueEmail` in Identity and a unique index on the normalized email in the database. Case-insensitive username uniqueness already comes from Identity: it compares the normalized name, which has a unique index.
 - **Password and lockout** use Identity's options: 8 characters, uppercase, lowercase and a symbol, without requiring a digit; 5 attempts and 15 minutes, including for new users.
@@ -1310,8 +1357,53 @@ web/                      (React, outside the .NET solution)
 
 - The tables are named `asp_net_users`, `asp_net_roles` and so on. Renaming them adds nothing for now.
 - The username columns are capped at 20 characters.
-- Identity's error messages are in English (for example, "Username 'x' is already taken."). They get translated in F1-09, with sign-up, which is where they reach the UI.
+- Identity's error messages are in English (for example, "Username 'x' is already taken."). They were translated in F1-09, with sign-up (see [TD-24](#td-24)).
 - "Letters" means letters without accents or ñ. Allowing them requires changing `UsernameRules` and its test.
 - Lockout only takes effect once sign-in exists (F1-10), since that's what counts failed attempts.
+
+[Back to top](#registro-de-decisiones-técnicas)
+
+<a id="td-24"></a>
+
+### TD-24 · User sign-up and form conventions
+
+**Context.** F1-09 calls for open sign-up with email, username, password and confirmation, with per-field errors that are also validated on the server (including a username that is already taken), and for the user to be signed in after signing up. It is the first real endpoint and the first form, so it sets the pattern for the ones that follow.
+
+**Decision.**
+
+- **Contract.** `POST /api/auth/register` in an `AuthController`, where F1-10 will add sign-in and sign-out. The input is `RegisterRequest` (`email`, `username`, `password`, `confirmPassword`). On success it returns **204 with no body**: the cookie is the result. On failure it returns **400 with per-field `errors`**, including an email or username that is already taken (not 409, because the criterion asks for the error on its field).
+- **The DTO validates shape** (required fields, email format, 256 and 128 character limits, matching passwords). The password policy and the username rule are applied by Identity, so they are not repeated in the backend.
+- **Identity errors by code.** `UserManager.CreateAsync` returns `IdentityError` values with a `Code`. The controller maps each code to its field with `nameof(IdentityErrorDescriber.X)`. An unknown code goes under the empty key, which the form shows as a general error.
+- **Identity messages in Spanish** through `SpanishIdentityErrorDescriber`, which inherits from `IdentityErrorDescriber` and keeps the codes. Every code the controller maps to a field is translated; the rest are translated in the story that uses them. Messages don't echo what the user typed.
+- **A single username check.** `AllowedUserNameCharacters` is empty, so Identity skips its own character check and only `UsernameValidator` (which applies `UsernameRules`) validates the format. `UsernameRules.AllowedCharacters` was removed, since nothing used it anymore.
+- **The cookie is configured in Api, not in Infrastructure:** `AddSignInManager` on an `IdentityBuilder` created in `Program.cs`, `AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies()`, and `UseAuthentication` before `UseAuthorization`.
+- **Explicit cookie attributes:** HttpOnly, SameSite Lax, 14 days with sliding renewal, and `Secure` always outside development (`SameAsRequest` in development). After sign-up, `SignInAsync(user, isPersistent: true)`.
+- **Frontend.** `apiFetchNoContent` for 204 responses and `getFieldErrors` to turn the `errors` of a 400 into one text per field. TanStack Query mutations don't retry (`retry ?? 0` by default), and that is kept. The `/registro` page follows the brand book: a card of at most 400 px, the 40 px horizontal logo with `space-12` around it, and a `display` heading. When done it shows "Tu cuenta está lista" instead of redirecting, as a stopgap until F1-12.
+- **Convention for every form** (`useFormValidation`, in `web/src/lib`):
+  - A field shows its browser-side error once the user leaves it with something typed, or on submit.
+  - From then on it is checked on every keystroke: the error goes away as soon as it is fixed and comes back if it breaks.
+  - A server error stays until that field is edited.
+  - On a submit with errors, focus moves to the first invalid field. General errors (empty key, 429, 5xx) go in a danger `Alert`.
+  - The browser uses a copy of the API's format rules (`web/src/auth/accountRules.ts`) with a comment pointing to the source. The server is still the authority. No form library.
+
+**Rationale.**
+
+- With 204 the client gets no data it doesn't need yet; the current user's data arrives through its own endpoint in F1-10, without fixing its shape early.
+- Mapping errors by code rather than by text keeps working if the wording changes. With `nameof`, a misspelled code doesn't compile.
+- The describer is Identity's intended extension point for messages: they live in one place, outside the controller.
+- Infrastructure doesn't reference ASP.NET Core, and the cookie is HTTP. `AddSignInManager` also registers `ISecurityStampValidator`, which Identity's cookie uses on every authenticated request; registering `SignInManager` by hand would leave it out.
+- The attributes match the defaults, but writing them down keeps them visible and independent of a given version. With `Secure` always on in production, the cookie stays protected even if reading `X-Forwarded-Proto` fails behind Render. This was checked with the production image in Docker.
+- Validating from the first keystroke interrupts while typing; waiting for submit leaves the user guessing what failed. Leaving the field is the middle ground.
+- With `aria-describedby`, a screen reader reads the label and the error of the focused field; with four fields, an error summary isn't needed.
+
+**Consequences.**
+
+- **Identity's validation order.** `CreateAsync` validates the password first and, if it fails, doesn't validate the user. A taken username with a weak password is reported on the second attempt. Accepted; browser-side validation makes it rare.
+- **Email enumeration.** "Ese correo ya está registrado" confirms that an email has an account. Accepted for a private app among friends: fully avoiding it requires email confirmation. Rate limiting will reduce it when it arrives.
+- **Simultaneous sign-ups.** If two people register the same username or email at the same time, the unique index rejects the second one, but the response is 500 instead of 400. Left pending; it is unlikely.
+- **Data Protection keys.** Until F1-10 they live inside the container, so every deploy on Render invalidates cookies. Accepted because there are no real users yet.
+- **Rules in two places.** Changing the email format, the username rule or the password policy requires changing both the API and `accountRules.ts`.
+- **CSRF.** The sign-up POST has no antiforgery token until F1-11. With SameSite Lax, the risk in the meantime is low.
+- `UsernameValidator` became public so the API can know its error code.
 
 [Back to top](#registro-de-decisiones-técnicas)
